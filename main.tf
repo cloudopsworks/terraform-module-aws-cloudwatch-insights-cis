@@ -178,78 +178,78 @@ module "contributor_insights" {
         ]
       }
     },
-    # {
-    #   name = "CIS-CMK-Deletion-Disabling"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "DeleteAlias",
-    #             "DisableKey",
-    #             "ScheduleKeyDeletion"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.arn",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
-    # {
-    #   name = "CIS-S3-Bucket-Policy-Changes"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "s3.amazonaws.com"
-    #           ],
-    #           "Match" = "$.eventSource"
-    #         },
-    #         {
-    #           "In" = [
-    #             "PutBucketAcl",
-    #             "PutBucketPolicy",
-    #             "PutBucketCors",
-    #             "PutBucketLifecycle",
-    #             "PutBucketReplication",
-    #             "DeleteBucketPolicy",
-    #             "DeleteBucketCors",
-    #             "DeleteBucketLifecycle",
-    #             "DeleteBucketReplication"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.sessionContext.sessionIssuer.arn",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
+    {
+      name = "CIS-CMK-Deletion-Disabling"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "DeleteAlias",
+                "DisableKey",
+                "ScheduleKeyDeletion"
+              ],
+              "Match" = "$.eventName"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.arn",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
+    {
+      name = "CIS-S3-Bucket-Policy-Changes"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "s3.amazonaws.com"
+              ],
+              "Match" = "$.eventSource"
+            },
+            {
+              "In" = [
+                "PutBucketAcl",
+                "PutBucketPolicy",
+                "PutBucketCors",
+                "PutBucketLifecycle",
+                "PutBucketReplication",
+                "DeleteBucketPolicy",
+                "DeleteBucketCors",
+                "DeleteBucketLifecycle",
+                "DeleteBucketReplication"
+              ],
+              "Match" = "$.eventName"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.sessionContext.sessionIssuer.arn",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
     # {
     #   name = "CIS-AWS-Config-Configuration-Changes"
     #   rule_definition = {
