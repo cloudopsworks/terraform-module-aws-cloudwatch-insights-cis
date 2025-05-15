@@ -112,72 +112,72 @@ module "contributor_insights" {
         ]
       }
     },
-    # {
-    #   name = "CIS-CloudTrail-Configuration-Changes"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "CreateTrail",
-    #             "UpdateTrail",
-    #             "DeleteTrail",
-    #             "StartLogging",
-    #             "StopLogging"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.sessionContext.sessionIssuer.arn",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
-    # {
-    #   name = "CIS-Console-Authentication-Failures"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "ConsoleLogin"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         },
-    #         {
-    #           "In" = [
-    #             "Failed authentication"
-    #           ],
-    #           "Match" = "$.errorMessage"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.userName",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
+    {
+      name = "CIS-CloudTrail-Configuration-Changes"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "CreateTrail",
+                "UpdateTrail",
+                "DeleteTrail",
+                "StartLogging",
+                "StopLogging"
+              ],
+              "Match" = "$.eventName"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.sessionContext.sessionIssuer.arn",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
+    {
+      name = "CIS-Console-Authentication-Failures"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "ConsoleLogin"
+              ],
+              "Match" = "$.eventName"
+            },
+            {
+              "In" = [
+                "Failed authentication"
+              ],
+              "Match" = "$.errorMessage"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.userName",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
     # {
     #   name = "CIS-CMK-Deletion-Disabling"
     #   rule_definition = {
