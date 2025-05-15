@@ -40,40 +40,40 @@ module "contributor_insights" {
         ]
       }
     },
-    # {
-    #   name = "CIS-Console-Signin-Without-MFA"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "ConsoleLogin"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         },
-    #         {
-    #           "NotIn" = [
-    #             "Yes"
-    #           ],
-    #           "Match" = "$.additionalEventData.MFAUsed"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.userName",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
+    {
+      name = "CIS-Console-Signin-Without-MFA"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "ConsoleLogin"
+              ],
+              "Match" = "$.eventName"
+            },
+            {
+              "NotIn" = [
+                "Yes"
+              ],
+              "Match" = "$.additionalEventData.MFAUsed"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.userName",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
     # {
     #   name = "CIS-Root-Activity"
     #   rule_definition = {
