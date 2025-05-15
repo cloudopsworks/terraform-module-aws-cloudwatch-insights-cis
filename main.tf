@@ -250,43 +250,43 @@ module "contributor_insights" {
         ]
       }
     },
-    # {
-    #   name = "CIS-AWS-Config-Configuration-Changes"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "config.amazonaws.com"
-    #           ],
-    #           "Match" = "$.eventSource"
-    #         },
-    #         {
-    #           "In" = [
-    #             "StopConfigurationRecorder",
-    #             "DeleteDeliveryChannel",
-    #             "PutDeliveryChannel",
-    #             "PutConfigurationRecorder"
-    #           ],
-    #           "Match" = "$.eventName"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.arn",
-    #         "$.sourceIPAddress"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
+    {
+      name = "CIS-AWS-Config-Configuration-Changes"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "config.amazonaws.com"
+              ],
+              "Match" = "$.eventSource"
+            },
+            {
+              "In" = [
+                "StopConfigurationRecorder",
+                "DeleteDeliveryChannel",
+                "PutDeliveryChannel",
+                "PutConfigurationRecorder"
+              ],
+              "Match" = "$.eventName"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.arn",
+            "$.sourceIPAddress"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
     # {
     #   name = "CIS-Security-Group-Changes"
     #   rule_definition = {
