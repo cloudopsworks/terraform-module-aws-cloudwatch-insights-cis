@@ -12,30 +12,30 @@ module "contributor_insights" {
   extra_tags = var.extra_tags
   insight_rules = [
     {
-      #name = "CIS-Unauthorized-API-Activity"
+      name = "CIS-Unauthorized-API-Activity"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "AccessDenied",
                 "UnauthorizedOperation"
               ],
-              "Match" : "$.errorCode"
+              "Match" = "$.errorCode"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.eventName"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -43,33 +43,33 @@ module "contributor_insights" {
     {
       name = "CIS-Console-Signin-Without-MFA"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "ConsoleLogin"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             },
             {
-              "NotIn" : [
+              "NotIn" = [
                 "Yes"
               ],
-              "Match" : "$.additionalEventData.MFAUsed"
+              "Match" = "$.additionalEventData.MFAUsed"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.userName",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -77,37 +77,37 @@ module "contributor_insights" {
     {
       name = "CIS-Root-Activity"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "Root"
               ],
-              "Match" : "$.userIdentity.type"
+              "Match" = "$.userIdentity.type"
             },
             {
-              "IsPresent" : false,
-              "Match" : "$.userIdentity.invokedBy"
+              "IsPresent" = false,
+              "Match"     = "$.userIdentity.invokedBy"
             },
             {
-              "NotIn" : [
+              "NotIn" = [
                 "AwsServiceEvent"
               ],
-              "Match" : "$.eventType"
+              "Match" = "$.eventType"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.type",
             "$.eventName"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -115,31 +115,31 @@ module "contributor_insights" {
     {
       name = "CIS-CloudTrail-Configuration-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "CreateTrail",
                 "UpdateTrail",
                 "DeleteTrail",
                 "StartLogging",
                 "StopLogging"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.sessionContext.sessionIssuer.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -147,33 +147,33 @@ module "contributor_insights" {
     {
       name = "CIS-Console-Authentication-Failures"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "ConsoleLogin"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             },
             {
-              "In" : [
+              "In" = [
                 "Failed authentication"
               ],
-              "Match" : "$.errorMessage"
+              "Match" = "$.errorMessage"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.userName",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -181,29 +181,29 @@ module "contributor_insights" {
     {
       name = "CIS-CMK-Deletion-Disabling"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "DeleteAlias",
                 "DisableKey",
                 "ScheduleKeyDeletion"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -211,21 +211,21 @@ module "contributor_insights" {
     {
       name = "CIS-S3-Bucket-Policy-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "s3.amazonaws.com"
               ],
-              "Match" : "$.eventSource"
+              "Match" = "$.eventSource"
             },
             {
-              "In" : [
+              "In" = [
                 "PutBucketAcl",
                 "PutBucketPolicy",
                 "PutBucketCors",
@@ -236,16 +236,16 @@ module "contributor_insights" {
                 "DeleteBucketLifecycle",
                 "DeleteBucketReplication"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.sessionContext.sessionIssuer.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -253,36 +253,36 @@ module "contributor_insights" {
     {
       name = "CIS-AWS-Config-Configuration-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "config.amazonaws.com"
               ],
-              "Match" : "$.eventSource"
+              "Match" = "$.eventSource"
             },
             {
-              "In" : [
+              "In" = [
                 "StopConfigurationRecorder",
                 "DeleteDeliveryChannel",
                 "PutDeliveryChannel",
                 "PutConfigurationRecorder"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -290,15 +290,15 @@ module "contributor_insights" {
     {
       name = "CIS-Security-Group-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "AuthorizeSecurityGroupIngress",
                 "AuthorizeSecurityGroupEgress",
                 "RevokeSecurityGroupIngress",
@@ -306,16 +306,16 @@ module "contributor_insights" {
                 "CreateSecurityGroup",
                 "DeleteSecurityGroup"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.sessionContext.sessionIssuer.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -323,15 +323,15 @@ module "contributor_insights" {
     {
       name = "CIS-Network-ACL-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "CreateNetworkAcl",
                 "CreateNetworkAclEntry",
                 "DeleteNetworkAcl",
@@ -339,16 +339,16 @@ module "contributor_insights" {
                 "ReplaceNetworkAclEntry",
                 "ReplaceNetworkAclAssociation"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -356,15 +356,15 @@ module "contributor_insights" {
     {
       name = "CIS-Network-Gateway-Changes"
       rule_definiton = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "CreateCustomerGateway",
                 "DeleteCustomerGateway",
                 "AttachInternetGateway",
@@ -372,16 +372,16 @@ module "contributor_insights" {
                 "DeleteInternetGateway",
                 "DetachInternetGateway"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -389,15 +389,15 @@ module "contributor_insights" {
     {
       name = "CIS-Route-Table-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "In" : [
+              "In" = [
                 "CreateRoute",
                 "CreateRouteTable",
                 "ReplaceRoute",
@@ -406,16 +406,16 @@ module "contributor_insights" {
                 "DeleteRoute",
                 "DisassociateRouteTable"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
@@ -423,15 +423,15 @@ module "contributor_insights" {
     {
       name = "CIS-VPC-Changes"
       rule_definition = {
-        "Schema" : {
-          "Name" : "CloudWatchLogRule",
-          "Version" : 1
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
         },
-        "AggregateOn" : "Count",
-        "Contribution" : {
-          "Filters" : [
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
             {
-              "StartsWith" : [
+              "StartsWith" = [
                 "CreateVpc",
                 "DeleteVpc",
                 "ModifyVpcAttribute",
@@ -442,16 +442,16 @@ module "contributor_insights" {
                 "DisableVpcClassicLink",
                 "EnableVpcClassicLink"
               ],
-              "Match" : "$.eventName"
+              "Match" = "$.eventName"
             }
           ],
-          "Keys" : [
+          "Keys" = [
             "$.userIdentity.arn",
             "$.sourceIPAddress"
           ]
         },
-        "LogFormat" : "JSON",
-        "LogGroupNames" : [
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
           var.settings.log_group_name
         ]
       }
