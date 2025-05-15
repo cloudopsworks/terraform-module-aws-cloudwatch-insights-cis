@@ -12,7 +12,7 @@ module "contributor_insights" {
   extra_tags = var.extra_tags
   insight_rules = [
     {
-      name = "CIS-Unauthorized-API-Activity"
+      #name = "CIS-Unauthorized-API-Activity"
       rule_definition = {
         "Schema" : {
           "Name" : "CloudWatchLogRule",
