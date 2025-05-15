@@ -74,44 +74,44 @@ module "contributor_insights" {
         ]
       }
     },
-    # {
-    #   name = "CIS-Root-Activity"
-    #   rule_definition = {
-    #     "Schema" = {
-    #       "Name"    = "CloudWatchLogRule",
-    #       "Version" = 1
-    #     },
-    #     "AggregateOn" = "Count",
-    #     "Contribution" = {
-    #       "Filters" = [
-    #         {
-    #           "In" = [
-    #             "Root"
-    #           ],
-    #           "Match" = "$.userIdentity.type"
-    #         },
-    #         {
-    #           "IsPresent" = false,
-    #           "Match"     = "$.userIdentity.invokedBy"
-    #         },
-    #         {
-    #           "NotIn" = [
-    #             "AwsServiceEvent"
-    #           ],
-    #           "Match" = "$.eventType"
-    #         }
-    #       ],
-    #       "Keys" = [
-    #         "$.userIdentity.type",
-    #         "$.eventName"
-    #       ]
-    #     },
-    #     "LogFormat" = "JSON",
-    #     "LogGroupNames" = [
-    #       var.settings.log_group_name
-    #     ]
-    #   }
-    # },
+    {
+      name = "CIS-Root-Activity"
+      rule_definition = {
+        "Schema" = {
+          "Name"    = "CloudWatchLogRule",
+          "Version" = 1
+        },
+        "AggregateOn" = "Count",
+        "Contribution" = {
+          "Filters" = [
+            {
+              "In" = [
+                "Root"
+              ],
+              "Match" = "$.userIdentity.type"
+            },
+            {
+              "IsPresent" = false,
+              "Match"     = "$.userIdentity.invokedBy"
+            },
+            {
+              "NotIn" = [
+                "AwsServiceEvent"
+              ],
+              "Match" = "$.eventType"
+            }
+          ],
+          "Keys" = [
+            "$.userIdentity.type",
+            "$.eventName"
+          ]
+        },
+        "LogFormat" = "JSON",
+        "LogGroupNames" = [
+          var.settings.log_group_name
+        ]
+      }
+    },
     # {
     #   name = "CIS-CloudTrail-Configuration-Changes"
     #   rule_definition = {
