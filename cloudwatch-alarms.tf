@@ -9,7 +9,7 @@ resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
   metric_name         = module.contributor_insights.insight_rules["CIS-Unauthorized-API-Activity"].id
-  namespace           = "AWS/CloudTrail"
+  namespace           = "CIS-Foundation"
   period              = "300"
   statistic           = "Sum"
   threshold           = "1"
