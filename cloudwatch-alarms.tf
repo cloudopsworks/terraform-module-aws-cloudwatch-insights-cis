@@ -17,7 +17,7 @@ resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
-  treat_missing_data        = "NotBreaching"
+  treat_missing_data        = "notBreaching"
   insufficient_data_actions = []
   tags                      = local.all_tags
 }
