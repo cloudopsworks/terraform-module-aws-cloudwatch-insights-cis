@@ -9,7 +9,7 @@ data "aws_cloudwatch_log_group" "log_group" {
 }
 
 module "contributor_insights" {
-  source     = "git::https://github.com/cloudopsworks/terraform-module-aws-cloudwatch-insights.git?ref=v1.0.0"
+  source     = "git::https://github.com/cloudopsworks/terraform-module-aws-cloudwatch-insights.git?ref=v1.0.1"
   is_hub     = var.is_hub
   org        = var.org
   spoke_def  = var.spoke_def
