@@ -4,6 +4,10 @@
 #            Distributed Under Apache v2.0 License
 #
 
+data "aws_cloudwatch_log_group" "log_group" {
+  name = data.aws_cloudwatch_log_group.log_group.arn
+}
+
 module "contributor_insights" {
   source     = "git::https://github.com/cloudopsworks/terraform-module-aws-cloudwatch-insights.git?ref=v1.0.0"
   is_hub     = var.is_hub
@@ -35,8 +39,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -69,8 +73,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -107,8 +111,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -139,8 +143,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -173,8 +177,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -203,8 +207,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -245,8 +249,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -282,8 +286,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -315,8 +319,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -348,8 +352,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -381,8 +385,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -415,8 +419,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     },
@@ -451,8 +455,8 @@ module "contributor_insights" {
           ]
         },
         "LogFormat" = "JSON",
-        "LogGroupNames" = [
-          var.settings.log_group_name
+        "LogGroupARNs" = [
+          data.aws_cloudwatch_log_group.log_group.arn
         ]
       }
     }
