@@ -5,7 +5,7 @@
 #
 
 data "aws_cloudwatch_log_group" "log_group" {
-  name = data.aws_cloudwatch_log_group.log_group.arn
+  name = var.settings.log_group_name
 }
 
 module "contributor_insights" {
