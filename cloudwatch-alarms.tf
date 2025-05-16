@@ -5,7 +5,7 @@
 #
 
 resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
-  depends_on = [aws_cloudformation_stack.contributor_insights]
+  depends_on          = [aws_cloudformation_stack.contributor_insights]
   alarm_name          = "CIS-Unauthorized-API-Activity"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
@@ -14,6 +14,7 @@ resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
   period              = "300"
   statistic           = "Sum"
   threshold           = "1"
+  datapoints_to_alarm = "1"
   alarm_description   = "Monitoring unauthorized API calls will help reveal application errors and may reduce time to detect malicious activity."
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,

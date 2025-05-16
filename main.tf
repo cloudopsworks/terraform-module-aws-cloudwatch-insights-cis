@@ -9,11 +9,12 @@ data "aws_cloudwatch_log_group" "log_group" {
 }
 
 resource "aws_cloudformation_stack" "contributor_insights" {
-  name = "CIS-Contributor-Insights"
+  name          = "CIS-Contributor-Insights"
   template_body = file("${path.module}/cis-contributorinsights/CIS-Contributorinsights.yaml")
   parameters = {
     ContributorInsightRuleState = "ENABLED"
-    CloudWatchLogGroupARN = data.aws_cloudwatch_log_group.log_group.arn
+    CloudWatchLogGroupARN       = data.aws_cloudwatch_log_group.log_group.arn
   }
-  tags = local.all_tags
+  timeout_in_minutes = 20
+  tags               = local.all_tags
 }
