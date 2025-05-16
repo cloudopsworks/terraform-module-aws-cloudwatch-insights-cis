@@ -4,3 +4,17 @@
 #            Distributed Under Apache v2.0 License
 #
 
+data "aws_cloudwatch_log_group" "log_group" {
+  name = var.settings.log_group_name
+}
+
+resource "aws_cloudformation_stack" "contributor_insights" {
+  name          = "CIS-Contributor-Insights"
+  template_body = file("${path.module}/cis-contributorinsights/CIS-Contributorinsights.yaml")
+  parameters = {
+    ContributorInsightRuleState = "ENABLED"
+    CloudWatchLogGroupARN       = data.aws_cloudwatch_log_group.log_group.arn
+  }
+  timeout_in_minutes = 20
+  tags               = local.all_tags
+}
