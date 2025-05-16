@@ -9,11 +9,11 @@ Metadata:
           default: "Rule Configuration"
         Parameters:
           - ContributorInsightRuleState
-          - CloudWatchLogGroup
+          - CloudWatchLogGroupARN
     ParameterLabels:
       ContributorInsightRuleState:
         default: "Contributor Insight Rule State"
-      CloudWatchLogGroup:
+      CloudWatchLogGroupARN:
         default: "CloudWatch Log group consuming CloudTrail logs"
 Parameters:
 
@@ -26,7 +26,7 @@ Parameters:
       - ENABLED
       - DISABLED
 
-  CloudWatchLogGroup:
+  CloudWatchLogGroupARN:
     Type: String
     Description: >-
       Select the Log Group that is consuming logs from your CloudTrail
@@ -61,8 +61,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Unauthorized-API-Activity
@@ -100,8 +100,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Console-Signin-Without-MFA
@@ -143,8 +143,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Root-Activity
@@ -180,8 +180,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-CloudTrail-Configuration-Changes
@@ -219,8 +219,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Console-Authentication-Failures
@@ -259,8 +259,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-CMK-Deletion-Disabling
@@ -306,8 +306,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-S3-Bucket-Policy-Changes
@@ -348,8 +348,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-AWS-Config-Configuration-Changes
@@ -386,8 +386,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Security-Group-Changes
@@ -424,8 +424,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Network-ACL-Changes
@@ -462,8 +462,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Network-Gateway-Changes
@@ -501,8 +501,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-Route-Table-Changes
@@ -542,8 +542,8 @@ Resources:
                 ]
             },
             "LogFormat": "JSON",
-            "LogGroupNames": [
-                "${CloudWatchLogGroup}"
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
             ]
         }
       RuleName: CIS-VPC-Changes

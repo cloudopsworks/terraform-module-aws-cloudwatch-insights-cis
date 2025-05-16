@@ -13,7 +13,7 @@ resource "aws_cloudformation_stack" "contributor_insights" {
   template_body = file("${path.module}/cis-contributorinsights/CIS-Contributorinsights.yaml")
   parameters = {
     ContributorInsightRuleState = "ENABLED"
-    CloudWatchLogGroup = data.aws_cloudwatch_log_group.log_group.name
+    CloudWatchLogGroupARN = data.aws_cloudwatch_log_group.log_group.arn
   }
   tags = local.all_tags
 }
