@@ -8,7 +8,7 @@ resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
   alarm_name          = "CIS-Unauthorized-API-Activity"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "1"
-  metric_name         = module.contributor_insights.insight_rules["CIS-Unauthorized-API-Activity"].arn
+  metric_name         = "INSIGHT_RULE_METRIC('CIS-Unauthorized-API-Activity', 'Sum')"
   namespace           = "CIS-Foundation"
   period              = "300"
   statistic           = "Sum"
