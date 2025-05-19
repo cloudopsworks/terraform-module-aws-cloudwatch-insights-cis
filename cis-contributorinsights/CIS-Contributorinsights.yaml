@@ -568,7 +568,7 @@ Resources:
                             "DeleteUser",
                             "UpdateUser",
                             "CreateGroup",
-                            "DeleteGroup"
+                            "DeleteGroup",
                             "UpdateGroup",
                             "AddUserToGroup",
                             "RemoveUserFromGroup",
