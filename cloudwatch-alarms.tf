@@ -178,8 +178,8 @@ resource "aws_cloudwatch_metric_alarm" "cis_config_configuration_changes" {
   ]
   metric_query {
     id          = "rule_metric"
-    label       = "CIS-AWS-Config-Configuration"
-    expression  = "INSIGHT_RULE_METRIC('CIS-AWS-Config-Configuration', 'Sum')"
+    label       = "CIS-AWS-Config-Configuration-Changes"
+    expression  = "INSIGHT_RULE_METRIC('CIS-AWS-Config-Configuration-Changes', 'Sum')"
     period      = "300"
     return_data = true
   }
