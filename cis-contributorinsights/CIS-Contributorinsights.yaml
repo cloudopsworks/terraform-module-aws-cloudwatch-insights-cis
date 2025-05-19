@@ -563,41 +563,20 @@ Resources:
             "Contribution": {
                 "Filters": [
                     {
+                        "In": [
+                            "iam.amazonaws.com"
+                        ],
+                        "Match": "$.eventSource"
+                    },
+                    {
                         "StartsWith": [
-                            "CreateUser",
-                            "DeleteUser",
-                            "UpdateUser",
-                            "CreateGroup",
-                            "DeleteGroup",
-                            "UpdateGroup",
-                            "AddUserToGroup",
-                            "RemoveUserFromGroup",
-                            "CreateAccessKey",
-                            "DeleteAccessKey",
-                            "UpdateAccessKey",
-                            "CreateLoginProfile",
-                            "DeleteLoginProfile",
-                            "UpdateLoginProfile",
-                            "CreateRole",
-                            "DeleteRole",
-                            "UpdateRole",
-                            "PutUserPolicy",
-                            "PutGroupPolicy",
-                            "PutRolePolicy",
-                            "DeleteUserPolicy",
-                            "DeleteGroupPolicy",
-                            "DeleteRolePolicy",
-                            "AttachUserPolicy",
-                            "AttachGroupPolicy",
-                            "AttachRolePolicy",
-                            "DetachUserPolicy",
-                            "DetachGroupPolicy",
-                            "DetachRolePolicy",
-                            "CreatePolicy",
-                            "DeletePolicy",
-                            "CreatePolicyVersion",
-                            "DeletePolicyVersion",
-                            "SetDefaultPolicyVersion"
+                            "Create",
+                            "Delete",
+                            "Update",
+                            "Add",
+                            "Remove",
+                            "Put",
+                            "Attach"
                         ],
                         "Match": "$.eventName"
                     }
