@@ -244,3 +244,23 @@ resource "aws_cloudwatch_metric_alarm" "cis_vpc_changes" {
   tags                      = local.all_tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "cis_iam_changes" {
+  depends_on          = [aws_cloudformation_stack.contributor_insights]
+  alarm_name          = "CIS-IAM-Changes"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "INSIGHT_RULE_METRIC('CIS-IAM-Changes', 'Sum')"
+  namespace           = "CIS-Foundation"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "1"
+  datapoints_to_alarm = "1"
+  alarm_description   = "Monitoring of all IAM Changes will help to detect unauthorized access to IAM."
+  alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  treat_missing_data        = "notBreaching"
+  insufficient_data_actions = []
+  tags                      = local.all_tags
+}
+
