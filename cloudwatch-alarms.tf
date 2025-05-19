@@ -15,6 +15,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_unauthorized_api_activity" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-Unauthorized-API-Activity"
@@ -36,6 +39,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_console_signin_without_mfa" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of Console Sign-in without MFA will help to detect unauthorized access to the AWS Management Console."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
@@ -61,6 +67,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_root_activity" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-Root-Activity"
@@ -82,6 +91,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_cloudtrail_configuration_changes" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of configuration changes to CloudTrail will help to detect unauthorized manipulation of CloudTrail."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
@@ -107,6 +119,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_console_authentication_failures" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-Console-Authentication-Failures"
@@ -128,6 +143,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_cmk_deletion_disabling" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of AWS Customer Managed Keys Deletion and Disable to detect unauthorized access to AWS KMS."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
@@ -153,6 +171,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_bucket_policy_changes" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-S3-Bucket-Policy-Changes"
@@ -174,6 +195,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_config_configuration_changes" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of AWS Config Configuration Changes will help to detect unauthorized access to AWS Config."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
@@ -199,6 +223,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_security_group_changes" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-Security-Group-Changes"
@@ -220,6 +247,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_network_acl_changes" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of AWS VPC Network ACL Changes will help to detect unauthorized access to VPC Network ACLs."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
@@ -245,6 +275,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_route_table_changes" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-Route-Table-Changes"
@@ -268,6 +301,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_vpc_changes" {
   alarm_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
+  ok_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
   metric_query {
     id          = "rule_metric"
     label       = "CIS-VPC-Changes"
@@ -289,6 +325,9 @@ resource "aws_cloudwatch_metric_alarm" "cis_iam_changes" {
   datapoints_to_alarm = "1"
   alarm_description   = "Monitoring of all IAM Changes will help to detect unauthorized access to IAM."
   alarm_actions = [
+    aws_sns_topic.cis_alarm_topic.arn,
+  ]
+  ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
   metric_query {
