@@ -549,6 +549,51 @@ Resources:
       RuleName: CIS-VPC-Changes
       RuleState: !Ref ContributorInsightRuleState
 
+  # CloudWatch Insight Rules - 3.15 All IAM Changes
+  IAMChangesInsightRule:
+    Type: AWS::CloudWatch::InsightRule
+    Properties:
+      RuleBody: !Sub |
+        {
+            "Schema": {
+                "Name": "CloudWatchLogRule",
+                "Version": 1
+            },
+            "AggregateOn": "Count",
+            "Contribution": {
+                "Filters": [
+                    {
+                        "In": [
+                            "iam.amazonaws.com"
+                        ],
+                        "Match": "$.eventSource"
+                    },
+                    {
+                        "StartsWith": [
+                            "Create",
+                            "Delete",
+                            "Update",
+                            "Add",
+                            "Remove",
+                            "Put",
+                            "Attach"
+                        ],
+                        "Match": "$.eventName"
+                    }
+                ],
+                "Keys": [
+                    "$.userIdentity.arn",
+                    "$.sourceIPAddress"
+                ]
+            },
+            "LogFormat": "JSON",
+            "LogGroupARNs": [
+                "${CloudWatchLogGroupARN}"
+            ]
+        }
+      RuleName: CIS-IAM-Changes
+      RuleState: !Ref ContributorInsightRuleState
+
   # CloudWatch Dashboard -
   # display wigets containing reports from Insight Rules
   CWDashboard:
@@ -567,6 +612,7 @@ Resources:
       - NetworkGatewayChangesInsightRule
       - RouteTableChangesInsightRule
       - VPCChangesInsightRule
+      - IAMChangesInsightRule
     Properties:
 
       DashboardBody: !Sub |
@@ -957,6 +1003,36 @@ Resources:
                         },
                           "region": "${AWS::Region}",
                         "title": "VPC Changes",
+                        "legend": {
+                            "position": "right"
+                        }
+                    }
+                },
+                {
+                    "type": "metric",
+                    "x": 0,
+                    "y": 12,
+                    "width": 12,
+                    "height": 6,
+                    "properties": {
+                        "period": 60,
+                        "insightRule": {
+                            "maxContributorCount": 10,
+                            "orderBy": "Sum",
+                            "ruleName": "${IAMChangesInsightRule.RuleName}"
+                        },
+                        "stacked": false,
+                        "view": "timeSeries",
+                        "yAxis": {
+                            "left": {
+                                "showUnits": false
+                            },
+                            "right": {
+                                "showUnits": false
+                            }
+                        },
+                          "region": "${AWS::Region}",
+                        "title": "IAM Changes",
                         "legend": {
                             "position": "right"
                         }
