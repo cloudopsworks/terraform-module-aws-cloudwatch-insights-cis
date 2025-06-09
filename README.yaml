@@ -1,4 +1,4 @@
-name: Terraform Transit Gateway Module
+name: Terraform AWS CIS CloudWatch Insights Module
 #logo: logo/logo.jpg
 
 license: "APACHE2"
@@ -8,23 +8,69 @@ copyrights:
     url: "https://cloudops.works"
     year: "2024"
 
-github_repo: cloudopsworks/terraform-module-aws-vpc-setup
+github_repo: cloudopsworks/terraform-module-aws-cloudwatch-insights-cis
 
 description: |-
-  VPC Module for setting up transit gateway with ResourceAccessMananger support.
+    This Terraform module provides a comprehensive setup for AWS CloudWatch Insights with CIS compliance rules. 
+    It includes configurations for CloudWatch log groups, exclusion rules, and insights rules to monitor AWS resources effectively. 
+    The module is designed to enhance security and compliance monitoring across AWS accounts.
 
 # Introduction to the project
-#introduction: |-
-#  This is an introduction.
+introduction: |-
+  This Terraform module facilitates the setup and configuration of AWS Transit Gateway with Resource Access Manager (RAM) support. 
+  It enables centralized management of VPC connectivity across multiple AWS accounts and regions, with built-in CloudWatch monitoring 
+  and alerting capabilities. The module includes CIS compliance monitoring dashboard and comprehensive insights rules for security tracking.
 
 # How to use this project
-#usage: |-
+usage: |-
+  1. Configure your AWS credentials and region
+  2. Include this module in your Terraform configuration
+  3. Configure the required variables:
+     - settings: Configure CloudWatch log group and exclusion rules
+     - Additional AWS-specific configurations as needed
+  4. Apply the configuration using Terraform workflow
 
 # Example usage
-#examples: |-
+examples: |-
+  ```hcl
+  # Terragrunt configuration example
+  terraform {
+    source = "git::https://github.com/cloudopsworks/terraform-module-aws-vpc-setup.git?ref=v1.0.0"
+  }
+
+  inputs = {
+    settings = {
+      log_group_name = "/aws/transit-gateway/logs"
+      exclude = {
+        unauthorized_events = ["CreateUser", "DeleteUser"]
+        unauthorized_sources = ["macie2.amazonaws.com", "cloud9.amazonaws.com"]
+      }
+    }
+  }
+  ```
 
 # How to get started quickly
-#quickstart: |-
+quickstart: |-
+  1. Clone the repository:
+     git clone https://github.com/cloudopsworks/terraform-module-aws-vpc-setup.git
+
+  2. Create a terragrunt.hcl file with basic configuration:
+     ```hcl
+     terraform {
+       source = "git::https://github.com/cloudopsworks/terraform-module-aws-vpc-setup.git?ref=v1.0.0"
+     }
+
+     inputs = {
+       settings = {
+         log_group_name = "/aws/transit-gateway/logs"
+       }
+     }
+     ```
+
+  3. Initialize and apply:
+     terragrunt init
+     terragrunt plan
+     terragrunt apply
 
 include:
   - "docs/targets.md"
