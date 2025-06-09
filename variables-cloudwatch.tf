@@ -4,6 +4,9 @@
 #            Distributed Under Apache v2.0 License
 #
 
+# YAML sample for module inputs
+# settings:
+#
 variable "settings" {
   description = "Settings for the insights"
   type        = any
