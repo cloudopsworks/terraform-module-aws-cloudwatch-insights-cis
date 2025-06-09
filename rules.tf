@@ -283,7 +283,7 @@ locals {
     }
   }
   config_changes = {
-    name              = "CIS-AWS-Config Configuration-Changes"
+    name              = "CIS-AWS-Config-Configuration-Changes"
     title             = "AWS Config Configuration Changes"
     alarm_description = "Monitoring of AWS Config Configuration Changes will help to detect unauthorized access to AWS Config."
     rule_state        = "ENABLED"
