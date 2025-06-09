@@ -6,9 +6,10 @@
 
 locals {
   api_calls = {
-    name       = "CIS-Unauthorized-API-Activity"
-    title      = "Unauthorized API Calls"
-    rule_state = "ENABLED"
+    name              = "CIS-Unauthorized-API-Activity"
+    title             = "Unauthorized API Calls"
+    alarm_description = "Monitoring unauthorized API calls will help reveal application errors and may reduce time to detect malicious activity."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -49,9 +50,10 @@ locals {
     }
   }
   console_signin = {
-    name       = "CIS-Console-Signin-Without-MFA"
-    title      = "Console Signin Without MFA"
-    rule_state = "ENABLED"
+    name              = "CIS-Console-Signin-Without-MFA"
+    title             = "Console Signin Without MFA"
+    alarm_description = "Monitoring of Console Sign-in without MFA will help to detect unauthorized access to the AWS Management Console."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -85,9 +87,10 @@ locals {
     }
   }
   root_activity = {
-    name       = "CIS-Root-Activity"
-    title      = "Root Activity"
-    rule_state = "ENABLED"
+    name              = "CIS-Root-Activity"
+    title             = "Root Activity"
+    alarm_description = "Monitoring of Root Activity to detect unauthorized access to the root account."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -125,9 +128,10 @@ locals {
     }
   }
   cloudtrail_changes = {
-    name       = "CIS-CloudTrail-Configuration-Changes"
-    title      = "CloudTrail Configuration Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-CloudTrail-Configuration-Changes"
+    title             = "CloudTrail Configuration Changes"
+    alarm_description = "Monitoring of configuration changes to CloudTrail will help to detect unauthorized manipulation of CloudTrail."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -159,9 +163,10 @@ locals {
     }
   }
   console_failures = {
-    name       = "CIS-Console-Authentication-Failures"
-    title      = "Console Authentication Failures"
-    rule_state = "ENABLED"
+    name              = "CIS-Console-Authentication-Failures"
+    title             = "Console Authentication Failures"
+    alarm_description = "Monitoring of AWS Console Authentication Failures will help to detect unauthorized access or harvesting into the AWS Management Console."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -195,9 +200,10 @@ locals {
     }
   }
   cmk_delete = {
-    name       = "CIS-CMK-Deletion-Disabling"
-    title      = "CMK Disabled or Deleted"
-    rule_state = "ENABLED"
+    name              = "CIS-CMK-Deletion-Disabling"
+    title             = "CMK Disabled or Deleted"
+    alarm_description = "Monitoring of AWS Customer Managed Keys Deletion and Disable to detect unauthorized access to AWS KMS."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -232,9 +238,10 @@ locals {
     }
   }
   s3_policy_changes = {
-    name       = "CIS-S3-Bucket-Policy-Changes"
-    title      = "S3 Bucket Policy Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-S3-Bucket-Policy-Changes"
+    title             = "S3 Bucket Policy Changes"
+    alarm_description = "Monitoring of AWS S3 Bucket Policy Changes will help to detect unauthorized access to S3 buckets."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -276,9 +283,10 @@ locals {
     }
   }
   config_changes = {
-    name       = "CIS-AWS-Config Configuration-Changes"
-    title      = "AWS Config Configuration Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-AWS-Config Configuration-Changes"
+    title             = "AWS Config Configuration Changes"
+    alarm_description = "Monitoring of AWS Config Configuration Changes will help to detect unauthorized access to AWS Config."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -315,9 +323,10 @@ locals {
     }
   }
   sg_changes = {
-    name       = "CIS-Security-Group-Changes"
-    title      = "Security Group Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-Security-Group-Changes"
+    title             = "Security Group Changes"
+    alarm_description = "Monitoring of AWS VPC Security Group Changes will help to detect unauthorized access to VPC Security Groups."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -350,9 +359,10 @@ locals {
     }
   }
   acl_changes = {
-    name       = "CIS-Network-ACL-Changes"
-    title      = "Network ACL Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-Network-ACL-Changes"
+    title             = "Network ACL Changes"
+    alarm_description = "Monitoring of AWS VPC Network ACL Changes will help to detect unauthorized access to VPC Network ACLs."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -385,9 +395,10 @@ locals {
     }
   }
   network_gw = {
-    name       = "CIS-Network-Gateway-Changes"
-    title      = "Network Gateway Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-Network-Gateway-Changes"
+    title             = "Network Gateway Changes"
+    alarm_description = "Monitoring of AWS VPC Network Gateway Changes will help to detect unauthorized access to VPC Network Gateways."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -420,9 +431,10 @@ locals {
     }
   }
   route_table_changes = {
-    name       = "CIS-Route-Table-Changes"
-    title      = "Route Table Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-Route-Table-Changes"
+    title             = "Route Table Changes"
+    alarm_description = "Monitoring of AWS VPC Route Table Changes will help to detect unauthorized access to VPC Route Tables."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -456,9 +468,10 @@ locals {
     }
   }
   vpc_changes = {
-    name       = "CIS-VPC-Changes"
-    title      = "VPC Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-VPC-Changes"
+    title             = "VPC Changes"
+    alarm_description = "Monitoring of AWS VPC Changes will help to detect unauthorized access to VPCs."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -494,9 +507,10 @@ locals {
     }
   }
   iam_changes = {
-    name       = "CIS-IAM-Changes"
-    title      = "IAM Changes"
-    rule_state = "ENABLED"
+    name              = "CIS-IAM-Changes"
+    title             = "IAM Changes"
+    alarm_description = "Monitoring of all IAM Changes will help to detect unauthorized access to IAM."
+    rule_state        = "ENABLED"
     body = {
       AggregateOn = "Count"
       Contribution = {
