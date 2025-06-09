@@ -22,7 +22,7 @@ locals {
     local.iam_changes,
   ]
   widgets = [
-    for item in insight_rules : {
+    for item in local.insight_rules : {
       height = 6
       properties = {
         insightRule = {
