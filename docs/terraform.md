@@ -8,7 +8,7 @@
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.97.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | n/a |
 
 ## Modules
 
@@ -41,18 +41,8 @@
 
 | Name | Description |
 |------|-------------|
-| <a name="output_cis_bucket_policy_changes_alarm_arn"></a> [cis\_bucket\_policy\_changes\_alarm\_arn](#output\_cis\_bucket\_policy\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_cloudtrail_configuration_changes_alarm_arn"></a> [cis\_cloudtrail\_configuration\_changes\_alarm\_arn](#output\_cis\_cloudtrail\_configuration\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_cmk_deletion_disabling_alarm_arn"></a> [cis\_cmk\_deletion\_disabling\_alarm\_arn](#output\_cis\_cmk\_deletion\_disabling\_alarm\_arn) | n/a |
-| <a name="output_cis_config_configuration_changes_alarm_arn"></a> [cis\_config\_configuration\_changes\_alarm\_arn](#output\_cis\_config\_configuration\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_console_authentication_failures_alarm_arn"></a> [cis\_console\_authentication\_failures\_alarm\_arn](#output\_cis\_console\_authentication\_failures\_alarm\_arn) | n/a |
-| <a name="output_cis_console_signin_without_mfa_alarm_arn"></a> [cis\_console\_signin\_without\_mfa\_alarm\_arn](#output\_cis\_console\_signin\_without\_mfa\_alarm\_arn) | n/a |
-| <a name="output_cis_iam_changes_alarm_arn"></a> [cis\_iam\_changes\_alarm\_arn](#output\_cis\_iam\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_network_acl_changes_alarm_arn"></a> [cis\_network\_acl\_changes\_alarm\_arn](#output\_cis\_network\_acl\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_root_activity_alarm_arn"></a> [cis\_root\_activity\_alarm\_arn](#output\_cis\_root\_activity\_alarm\_arn) | n/a |
-| <a name="output_cis_route_table_changes_alarm_arn"></a> [cis\_route\_table\_changes\_alarm\_arn](#output\_cis\_route\_table\_changes\_alarm\_arn) | n/a |
-| <a name="output_cis_security_group_changes_alarm_arn"></a> [cis\_security\_group\_changes\_alarm\_arn](#output\_cis\_security\_group\_changes\_alarm\_arn) | n/a |
+| <a name="output_cis_alarms"></a> [cis\_alarms](#output\_cis\_alarms) | n/a |
+| <a name="output_cis_dashboard_id"></a> [cis\_dashboard\_id](#output\_cis\_dashboard\_id) | n/a |
+| <a name="output_cis_dashboard_name"></a> [cis\_dashboard\_name](#output\_cis\_dashboard\_name) | n/a |
 | <a name="output_cis_sns_topic_arn"></a> [cis\_sns\_topic\_arn](#output\_cis\_sns\_topic\_arn) | n/a |
 | <a name="output_cis_sns_topic_name"></a> [cis\_sns\_topic\_name](#output\_cis\_sns\_topic\_name) | n/a |
-| <a name="output_cis_unauthorized_api_activity_alarm_arn"></a> [cis\_unauthorized\_api\_activity\_alarm\_arn](#output\_cis\_unauthorized\_api\_activity\_alarm\_arn) | n/a |
-| <a name="output_cis_vpc_changes_alarm_arn"></a> [cis\_vpc\_changes\_alarm\_arn](#output\_cis\_vpc\_changes\_alarm\_arn) | n/a |
