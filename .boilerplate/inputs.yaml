@@ -1,18 +1,10 @@
 # Module configuration
-# Required variables
-{{- range .requiredVariables }}
-{{- if ne .Name "org"}}
-# Description {{ .Description }} , Type: {{ .Type }}
-{{ .Name }}: {{ .DefaultValuePlaceholder }}
-{{- end }}
-
-{{- end }}
-# Optional variables
-{{- range .optionalVariables }}
-{{- if ne .Name "is_hub" "spoke_def" "extra_args" }}
-# Description {{ .Description }} , Type: {{ .Type }}
-#{{ .Name }}: {{ .DefaultValue }}
-{{- end }}
-
-{{- end }}
-
+# settings: # (Required) CloudWatch Contributor Insights configuration for the CIS alarm set.
+#   log_group_name: "/aws/cloudtrail/organization" # (Required) Existing CloudWatch log group name that receives the CloudTrail events to analyze.
+#   exclude: # (Optional) Fine-grained exclusions for the unauthorized API activity rule. Default: omitted.
+#     unauthorized_events: # (Optional) CloudTrail event names to ignore when evaluating unauthorized API activity. Default: [].
+#       - "CreateUser"
+#       - "DeleteUser"
+#     unauthorized_sources: # (Optional) AWS service eventSource values to ignore when evaluating unauthorized API activity. Default: [].
+#       - "macie2.amazonaws.com"
+#       - "cloud9.amazonaws.com"
