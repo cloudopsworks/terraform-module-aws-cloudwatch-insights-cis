@@ -34,7 +34,7 @@ locals {
           position = "right"
         }
         period  = 60
-        region  = data.aws_region.current.id
+        region  = data.aws_region.current.region
         stacked = false
         title   = item.title
         view    = "timeSeries"
