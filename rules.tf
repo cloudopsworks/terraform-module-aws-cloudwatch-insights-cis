@@ -5,7 +5,115 @@
 #
 
 locals {
+  # Event names watched by the sg_changes rule. Shared by the Contributor Insights rule
+  # filter and by the metric filter patterns below so the two cannot drift.
+  sg_event_names = [
+    "AuthorizeSecurityGroupIngress",
+    "AuthorizeSecurityGroupEgress",
+    "RevokeSecurityGroupIngress",
+    "RevokeSecurityGroupEgress",
+    "CreateSecurityGroup",
+    "DeleteSecurityGroup",
+  ]
+
+  # Name patterns of the security groups BEING CHANGED, kept out of the sg_changes alarm.
+  # Same two forms and same mechanism as iam_role_patterns - see the notes on that local.
+  #
+  # Read the caveat before using this: CloudTrail carries
+  # $.requestParameters.groupName only on CreateSecurityGroup, and on the legacy
+  # name-based Authorize/Revoke calls. Authorize, Revoke and Delete against a group in a
+  # VPC identify it by $.requestParameters.groupId instead, and group ids are random, so
+  # they cannot be pattern matched. A group excluded by name therefore stops raising the
+  # alarm for its CREATION while every rule change on it keeps alarming. That is narrow on
+  # purpose - it is the most CloudTrail exposes.
+  sg_name_patterns = try(var.settings.exclude.security_group_name_patterns, [])
+
+  sg_event_name_condition = join(" || ", [
+    for name in local.sg_event_names : "$.eventName = \"${name}\""
+  ])
+
+  sg_changes_pattern = length(local.sg_name_patterns) == 0 ? null : format(
+    "{ (%s) }",
+    local.sg_event_name_condition,
+  )
+  sg_changes_exclude_pattern = length(local.sg_name_patterns) == 0 ? null : format(
+    "{ (%s) && (%s) }",
+    local.sg_event_name_condition,
+    join(" || ", [
+      for pattern in local.sg_name_patterns : format(
+        "$.requestParameters.groupName = %s",
+        startswith(pattern, "%") ? pattern : format("\"%s\"", pattern),
+      )
+    ]),
+  )
+
+  # IAM event name prefixes watched by the iam_changes rule. Shared by the Contributor
+  # Insights rule filter and by the metric filter pattern below so the two cannot drift.
+  iam_event_prefixes = [
+    "Create",
+    "Delete",
+    "Update",
+    "Add",
+    "Remove",
+    "Put",
+    "Attach",
+  ]
+
+  # Name patterns of the roles BEING CHANGED, kept out of the iam_changes alarm. A
+  # Contributor Insights filter cannot express them (it has no negated pattern operator),
+  # so they are applied through the CloudWatch Logs metric filters that back the alarm
+  # instead of INSIGHT_RULE_METRIC. The Contributor Insights rule and its dashboard widget
+  # are unchanged and still rank every contributor, excluded roles included.
+  #
+  # Values are passed through verbatim. A plain string takes "*" in any position, each
+  # form verified against logs:TestMetricFilter:
+  #
+  #   "svc-*"         starts with  -> svc-exec-role, svc-exec-role-extra
+  #   "*-exec-role"   ends with    -> svc-exec-role, but NOT svc-exec-role-extra
+  #   "*exec*"        contains     -> any name holding "exec"
+  #   "exec-role"     exact        -> only exec-role
+  #
+  # A value wrapped in percent signs is passed through as a CloudWatch Logs regex instead,
+  # for what a wildcard cannot express - character classes, alternation, anchors:
+  #
+  #   "%^svc-[a-z]+-role$%"
+  #
+  # The regex form is never required for a prefix, suffix or substring. Its limits, both
+  # confirmed by the API: at most 2 regex per filter pattern, and parentheses are
+  # rejected outright - group alternatives with "|". "." and "+" are regex operators, so
+  # escape them (\\. and \\+) to match a literal role name containing them. Validation of
+  # both forms lives on the settings variable.
+  iam_role_patterns = try(var.settings.exclude.iam_role_patterns, [])
+
+  # The eventName arm shared by both metric filter patterns below.
+  iam_event_name_condition = join(" || ", [
+    for prefix in local.iam_event_prefixes : "$.eventName = \"${prefix}*\""
+  ])
+
+  # Exclusion is applied by subtraction rather than by negating the pattern: one metric
+  # filter counts every IAM change the rule watches, a second counts only the changes to
+  # excluded roles, and the alarm evaluates total - excluded. This uses only documented
+  # constructs - a regex with "=" - and avoids needing to negate a regex or to special
+  # case IAM events that carry no roleName at all (CreateUser, CreatePolicy,
+  # CreateAccessKey, AttachUserPolicy, ...): those simply never land in the excluded
+  # count, so they stay in the alarm.
+  iam_changes_pattern = length(local.iam_role_patterns) == 0 ? null : format(
+    "{ ($.eventSource = \"iam.amazonaws.com\") && (%s) }",
+    local.iam_event_name_condition,
+  )
+  iam_changes_exclude_pattern = length(local.iam_role_patterns) == 0 ? null : format(
+    "{ ($.eventSource = \"iam.amazonaws.com\") && (%s) && (%s) }",
+    local.iam_event_name_condition,
+    join(" || ", [
+      for pattern in local.iam_role_patterns : format(
+        "$.requestParameters.roleName = %s",
+        startswith(pattern, "%") ? pattern : format("\"%s\"", pattern),
+      )
+    ]),
+  )
+
   api_calls = {
+    key               = "api_calls"
     name              = "CIS-Unauthorized-API-Activity"
     title             = "Unauthorized API Calls"
     alarm_description = "Monitoring unauthorized API calls will help reveal application errors and may reduce time to detect malicious activity."
@@ -50,6 +158,7 @@ locals {
     }
   }
   console_signin = {
+    key               = "console_signin"
     name              = "CIS-Console-Signin-Without-MFA"
     title             = "Console Signin Without MFA"
     alarm_description = "Monitoring of Console Sign-in without MFA will help to detect unauthorized access to the AWS Management Console."
@@ -87,6 +196,7 @@ locals {
     }
   }
   root_activity = {
+    key               = "root_activity"
     name              = "CIS-Root-Activity"
     title             = "Root Activity"
     alarm_description = "Monitoring of Root Activity to detect unauthorized access to the root account."
@@ -128,6 +238,7 @@ locals {
     }
   }
   cloudtrail_changes = {
+    key               = "cloudtrail_changes"
     name              = "CIS-CloudTrail-Configuration-Changes"
     title             = "CloudTrail Configuration Changes"
     alarm_description = "Monitoring of configuration changes to CloudTrail will help to detect unauthorized manipulation of CloudTrail."
@@ -163,6 +274,7 @@ locals {
     }
   }
   console_failures = {
+    key               = "console_failures"
     name              = "CIS-Console-Authentication-Failures"
     title             = "Console Authentication Failures"
     alarm_description = "Monitoring of AWS Console Authentication Failures will help to detect unauthorized access or harvesting into the AWS Management Console."
@@ -200,6 +312,7 @@ locals {
     }
   }
   cmk_delete = {
+    key               = "cmk_delete"
     name              = "CIS-CMK-Deletion-Disabling"
     title             = "CMK Disabled or Deleted"
     alarm_description = "Monitoring of AWS Customer Managed Keys Deletion and Disable to detect unauthorized access to AWS KMS."
@@ -238,6 +351,7 @@ locals {
     }
   }
   s3_policy_changes = {
+    key               = "s3_policy_changes"
     name              = "CIS-S3-Bucket-Policy-Changes"
     title             = "S3 Bucket Policy Changes"
     alarm_description = "Monitoring of AWS S3 Bucket Policy Changes will help to detect unauthorized access to S3 buckets."
@@ -283,6 +397,7 @@ locals {
     }
   }
   config_changes = {
+    key               = "config_changes"
     name              = "CIS-AWS-Config-Configuration-Changes"
     title             = "AWS Config Configuration Changes"
     alarm_description = "Monitoring of AWS Config Configuration Changes will help to detect unauthorized access to AWS Config."
@@ -323,26 +438,35 @@ locals {
     }
   }
   sg_changes = {
+    key               = "sg_changes"
     name              = "CIS-Security-Group-Changes"
     title             = "Security Group Changes"
     alarm_description = "Monitoring of AWS VPC Security Group Changes will help to detect unauthorized access to VPC Security Groups."
     rule_state        = "ENABLED"
+    # Both non-null only when settings.exclude.security_group_name_patterns is set.
+    metric_filter_pattern         = local.sg_changes_pattern
+    metric_filter_exclude_pattern = local.sg_changes_exclude_pattern
     body = {
       AggregateOn = "Count"
       Contribution = {
-        Filters = [
+        Filters = concat([
           {
-            In = [
-              "AuthorizeSecurityGroupIngress",
-              "AuthorizeSecurityGroupEgress",
-              "RevokeSecurityGroupIngress",
-              "RevokeSecurityGroupEgress",
-              "CreateSecurityGroup",
-              "DeleteSecurityGroup",
-            ]
+            In    = local.sg_event_names
             Match = "$.eventName"
           },
-        ]
+          ],
+          length(try(var.settings.exclude.security_groups, [])) > 0 ? [
+            {
+              NotIn = var.settings.exclude.security_groups
+              Match = "$.requestParameters.groupId"
+            },
+          ] : [],
+          length(try(var.settings.exclude.security_group_names, [])) > 0 ? [
+            {
+              NotIn = var.settings.exclude.security_group_names
+              Match = "$.requestParameters.groupName"
+            },
+        ] : [])
         Keys = [
           "$.userIdentity.sessionContext.sessionIssuer.arn",
           "$.sourceIPAddress",
@@ -359,6 +483,7 @@ locals {
     }
   }
   acl_changes = {
+    key               = "acl_changes"
     name              = "CIS-Network-ACL-Changes"
     title             = "Network ACL Changes"
     alarm_description = "Monitoring of AWS VPC Network ACL Changes will help to detect unauthorized access to VPC Network ACLs."
@@ -395,6 +520,7 @@ locals {
     }
   }
   network_gw = {
+    key               = "network_gw"
     name              = "CIS-Network-Gateway-Changes"
     title             = "Network Gateway Changes"
     alarm_description = "Monitoring of AWS VPC Network Gateway Changes will help to detect unauthorized access to VPC Network Gateways."
@@ -431,6 +557,7 @@ locals {
     }
   }
   route_table_changes = {
+    key               = "route_table_changes"
     name              = "CIS-Route-Table-Changes"
     title             = "Route Table Changes"
     alarm_description = "Monitoring of AWS VPC Route Table Changes will help to detect unauthorized access to VPC Route Tables."
@@ -468,6 +595,7 @@ locals {
     }
   }
   vpc_changes = {
+    key               = "vpc_changes"
     name              = "CIS-VPC-Changes"
     title             = "VPC Changes"
     alarm_description = "Monitoring of AWS VPC Changes will help to detect unauthorized access to VPCs."
@@ -507,14 +635,18 @@ locals {
     }
   }
   iam_changes = {
+    key               = "iam_changes"
     name              = "CIS-IAM-Changes"
     title             = "IAM Changes"
     alarm_description = "Monitoring of all IAM Changes will help to detect unauthorized access to IAM."
     rule_state        = "ENABLED"
+    # Both non-null only when settings.exclude.iam_role_patterns is set - see locals above.
+    metric_filter_pattern         = local.iam_changes_pattern
+    metric_filter_exclude_pattern = local.iam_changes_exclude_pattern
     body = {
       AggregateOn = "Count"
       Contribution = {
-        Filters = [
+        Filters = concat([
           {
             In = [
               "iam.amazonaws.com",
@@ -522,18 +654,16 @@ locals {
             Match = "$.eventSource"
           },
           {
-            Match = "$.eventName"
-            StartsWith = [
-              "Create",
-              "Delete",
-              "Update",
-              "Add",
-              "Remove",
-              "Put",
-              "Attach",
-            ]
+            Match      = "$.eventName"
+            StartsWith = local.iam_event_prefixes
           },
-        ]
+          ],
+          length(try(var.settings.exclude.iam_roles, [])) > 0 ? [
+            {
+              NotIn = var.settings.exclude.iam_roles
+              Match = "$.requestParameters.roleName"
+            },
+        ] : [])
         Keys = [
           "$.userIdentity.arn",
           "$.sourceIPAddress",

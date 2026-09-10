@@ -20,14 +20,36 @@ resource "aws_cloudwatch_metric_alarm" "this" {
   ok_actions = [
     aws_sns_topic.cis_alarm_topic.arn,
   ]
-  metric_query {
-    id          = "rule_metric"
-    label       = each.value.name
-    expression  = "INSIGHT_RULE_METRIC('${each.value.name}', 'Sum')"
-    period      = "300"
-    return_data = true
+
+  # One query for a Contributor Insights backed alarm, three for a metric filter backed
+  # one (total, excluded, and the subtraction that is evaluated) - see
+  # local.alarm_metric_queries.
+  dynamic "metric_query" {
+    for_each = local.alarm_metric_queries[each.key]
+    content {
+      id          = metric_query.value.id
+      label       = metric_query.value.label
+      expression  = metric_query.value.expression
+      period      = metric_query.value.period
+      return_data = metric_query.value.return_data
+
+      dynamic "metric" {
+        for_each = metric_query.value.metric_name != null ? [metric_query.value.metric_name] : []
+        content {
+          metric_name = metric.value
+          namespace   = local.metric_namespace
+          period      = 300
+          stat        = "Sum"
+        }
+      }
+    }
   }
   treat_missing_data        = "notBreaching"
   insufficient_data_actions = []
   tags                      = local.all_tags
+
+  depends_on = [
+    aws_cloudwatch_log_metric_filter.this,
+    aws_cloudwatch_log_metric_filter.excluded,
+  ]
 }

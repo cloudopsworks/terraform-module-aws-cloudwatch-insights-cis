@@ -48,6 +48,8 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 
 Use this module when you already centralize AWS CloudTrail events in CloudWatch Logs and want opinionated CIS monitoring on top of that stream.
 The module reads one existing log group, builds a curated set of Contributor Insights rules for key CIS control areas, publishes alarm notifications through SNS, and exposes a dashboard that operators can review during incident response or compliance reviews.
+Every rule ships enabled; `settings.rules.<rule>.enabled` lets you switch individual rules off selectively, which also removes the matching alarm and dashboard widget.
+Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule, while `settings.exclude.iam_role_patterns` and `settings.exclude.security_group_name_patterns` match the names of the roles or security groups being changed with a `*` wildcard in any position - `prefix-*`, `*-suffix`, `*substring*` - switching that rule's alarm onto CloudWatch Logs metric filters that evaluate total minus excluded, since Contributor Insights cannot negate a pattern.
 
 ## Usage
 
@@ -70,13 +72,57 @@ The scaffolded `inputs.yaml` should contain the module-specific settings below:
 # Module configuration
 settings: # (Required) CloudWatch Contributor Insights configuration for the CIS alarm set.
   log_group_name: "/aws/cloudtrail/organization" # (Required) Existing CloudWatch log group name that receives the CloudTrail events to analyze.
-  exclude: # (Optional) Fine-grained exclusions for the unauthorized API activity rule. Default: omitted.
-    unauthorized_events: # (Optional) CloudTrail event names to ignore when evaluating unauthorized API activity. Default: [].
+  exclude: # (Optional) Per-rule exclusions, in two kinds. The exact-match lists become NotIn filters on the Contributor Insights rule itself - no wildcards there, Contributor Insights has no negated pattern operator, so list full values, max 10 per list. The *_patterns lists take a "*" wildcard in any position (or a "%regex%") and are applied to that rule's ALARM through CloudWatch Logs metric filters instead. Default: omitted.
+    unauthorized_events: # (Optional) api_calls rule - CloudTrail event names ($.eventName) to ignore. Default: [].
       - "CreateUser"
       - "DeleteUser"
-    unauthorized_sources: # (Optional) AWS service eventSource values to ignore when evaluating unauthorized API activity. Default: [].
+    unauthorized_sources: # (Optional) api_calls rule - AWS service eventSource values ($.eventSource) to ignore. Default: [].
       - "macie2.amazonaws.com"
       - "cloud9.amazonaws.com"
+    security_groups: # (Optional) sg_changes rule - security group ids ($.requestParameters.groupId) to ignore. NOTE: CreateSecurityGroup does not carry groupId, so setting this drops CreateSecurityGroup from the rule. Default: [].
+      - "sg-0a1b2c3d4e5f6a7b8"
+    security_group_names: # (Optional) sg_changes rule - exact security group names ($.requestParameters.groupName) to ignore. Default: [].
+      - "eks-cluster-sg-prod"
+    security_group_name_patterns: # (Optional) Patterns for the names of the security groups BEING CHANGED, kept out of the CIS-Security-Group-Changes alarm. "*" works in any position. NARROW BY DESIGN - CloudTrail carries groupName only on create and legacy name-based calls, so this mutes the alarm for a group's CREATION only; rule changes on it keep alarming. Default: [].
+      - "eks-cluster-sg-*" # starts with
+      - "*-tmp-sg" # ends with
+    iam_roles: # (Optional) iam_changes rule - exact IAM role names ($.requestParameters.roleName) to ignore. NOTE: non-role IAM events do not carry roleName, so setting this narrows the rule to role events only. Default: [].
+      - "ci-deployer"
+    iam_role_patterns: # (Optional) Patterns for the names of the roles BEING CHANGED, kept out of the CIS-IAM-Changes alarm. Switches that alarm onto metric filters evaluating total minus excluded; the dashboard widget still ranks every contributor. Roles cannot be excluded by IAM path. Default: [].
+      - "cognito-lambda-auth-*" # "*" at the end - starts with
+      - "*-exec-role" # "*" at the start - ends with
+      - "*exec*" # "*" at both ends - contains
+      - "exact-role-name" # no wildcard - exact match only
+      - "%^svc-[a-z]+-role$%" # regex, only for what "*" cannot express. Max 2 regex values, no parentheses.
+  rules: # (Optional) Per-rule switches. Every rule is enabled when omitted. Setting enabled to false removes that Contributor Insights rule, its metric alarm and its dashboard widget. Default: {}.
+    api_calls:
+      enabled: true # (Optional) Unauthorized API Calls. Valid values: true, false. Default: true.
+    console_signin:
+      enabled: true # (Optional) Console Signin Without MFA. Valid values: true, false. Default: true.
+    root_activity:
+      enabled: true # (Optional) Root Activity. Valid values: true, false. Default: true.
+    cloudtrail_changes:
+      enabled: true # (Optional) CloudTrail Configuration Changes. Valid values: true, false. Default: true.
+    console_failures:
+      enabled: true # (Optional) Console Authentication Failures. Valid values: true, false. Default: true.
+    cmk_delete:
+      enabled: true # (Optional) CMK Disabled or Deleted. Valid values: true, false. Default: true.
+    s3_policy_changes:
+      enabled: true # (Optional) S3 Bucket Policy Changes. Valid values: true, false. Default: true.
+    config_changes:
+      enabled: true # (Optional) AWS Config Configuration Changes. Valid values: true, false. Default: true.
+    sg_changes:
+      enabled: true # (Optional) Security Group Changes. Valid values: true, false. Default: true.
+    acl_changes:
+      enabled: true # (Optional) Network ACL Changes. Valid values: true, false. Default: true.
+    network_gw:
+      enabled: true # (Optional) Network Gateway Changes. Valid values: true, false. Default: true.
+    route_table_changes:
+      enabled: true # (Optional) Route Table Changes. Valid values: true, false. Default: true.
+    vpc_changes:
+      enabled: true # (Optional) VPC Changes. Valid values: true, false. Default: true.
+    iam_changes:
+      enabled: true # (Optional) IAM Changes. Valid values: true, false. Default: true.
 ```
 
 The rendered `terragrunt.hcl` generated by scaffold is expected to look like this:
@@ -134,8 +180,10 @@ terragrunt apply
 1. Ensure CloudTrail is already delivering events into a CloudWatch log group.
 2. Scaffold a Terragrunt deployment that points at a released module tag.
 3. Set `settings.log_group_name` to that existing log group.
-4. Optionally add exclusions for known benign unauthorized API activity noise.
-5. Run `terragrunt plan` and `terragrunt apply`.
+4. Optionally add exclusions under `settings.exclude` for known benign noise - unauthorized API activity, specific security groups, or specific IAM roles. Exclusions are exact-match lists (no prefixes or wildcards) of at most 10 values each, and an exclusion narrows its rule to events that carry the matched field, so review the caveats above before setting `security_groups` or `iam_roles`.
+5. Optionally switch off individual rules under `settings.rules.<rule>.enabled` - each flag drops the Contributor Insights rule, its alarm and its dashboard widget together.
+6. To mute generated or automation-owned resources in an alarm without losing them from the dashboard, list name patterns under `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). Note that the security group variant only sees group names on creation - see the caveats in the usage section.
+7. Run `terragrunt plan` and `terragrunt apply`.
 
 
 ## Examples
@@ -151,6 +199,20 @@ settings:
     unauthorized_sources:
       - "macie2.amazonaws.com"
       - "cloud9.amazonaws.com"
+    # Mute a known-noisy security group and an automation role.
+    security_groups:
+      - "sg-0a1b2c3d4e5f6a7b8"
+    iam_roles:
+      - "ci-deployer"
+    # Wildcard exclusion for generated roles - mutes the IAM alarm, not the dashboard.
+    iam_role_patterns:
+      - "*-exec-role"
+  # Switch off the rules that are not wanted - omitted rules stay enabled.
+  rules:
+    vpc_changes:
+      enabled: false
+    route_table_changes:
+      enabled: false
 ```
 
 ```hcl
@@ -181,28 +243,30 @@ Available targets:
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.35 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.35 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.64.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
-| <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.9 |
+| ---- | ------ | ------- |
+| <a name="module_tags"></a> [tags](#module\_tags) | cloudopsworks/tags/local | 1.0.10 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_cloudwatch_contributor_insight_rule.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_contributor_insight_rule) | resource |
 | [aws_cloudwatch_dashboard.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_dashboard) | resource |
+| [aws_cloudwatch_log_metric_filter.excluded](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_metric_filter) | resource |
+| [aws_cloudwatch_log_metric_filter.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_metric_filter) | resource |
 | [aws_cloudwatch_metric_alarm.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
 | [aws_sns_topic.cis_alarm_topic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
 | [aws_cloudwatch_log_group.log_group](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/cloudwatch_log_group) | data source |
@@ -211,20 +275,21 @@ Available targets:
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_settings"></a> [settings](#input\_settings) | Settings for the insights | `any` | `{}` | no |
+| <a name="input_settings"></a> [settings](#input\_settings) | Settings for the insights. Supports log\_group\_name (Required), exclude (Optional) for per-rule NotIn exclusions, and rules (Optional) where each rule key accepts enabled to switch the Contributor Insights rule, its alarm and its dashboard widget on or off. Default: {} - all rules enabled, no exclusions. | `any` | `{}` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_cis_alarms"></a> [cis\_alarms](#output\_cis\_alarms) | n/a |
 | <a name="output_cis_dashboard_id"></a> [cis\_dashboard\_id](#output\_cis\_dashboard\_id) | n/a |
 | <a name="output_cis_dashboard_name"></a> [cis\_dashboard\_name](#output\_cis\_dashboard\_name) | n/a |
+| <a name="output_cis_metric_filter_alarms"></a> [cis\_metric\_filter\_alarms](#output\_cis\_metric\_filter\_alarms) | Rule names whose alarm is driven by a CloudWatch Logs metric filter instead of the Contributor Insights rule metric, because pattern-based exclusions are configured for them. |
 | <a name="output_cis_sns_topic_arn"></a> [cis\_sns\_topic\_arn](#output\_cis\_sns\_topic\_arn) | n/a |
 | <a name="output_cis_sns_topic_name"></a> [cis\_sns\_topic\_name](#output\_cis\_sns\_topic\_name) | n/a |
 
