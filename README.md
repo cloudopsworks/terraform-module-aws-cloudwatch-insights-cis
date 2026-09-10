@@ -49,7 +49,7 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 Use this module when you already centralize AWS CloudTrail events in CloudWatch Logs and want opinionated CIS monitoring on top of that stream.
 The module reads one existing log group, builds a curated set of Contributor Insights rules for key CIS control areas, publishes alarm notifications through SNS, and exposes a dashboard that operators can review during incident response or compliance reviews.
 Every rule ships enabled; `settings.rules.<rule>.enabled` lets you switch individual rules off selectively, which also removes the matching alarm and dashboard widget.
-Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule, while `settings.exclude.iam_role_patterns` matches the names of the roles being changed with a `*` wildcard in any position - `prefix-*`, `*-suffix`, `*substring*` - switching the IAM alarm onto CloudWatch Logs metric filters that evaluate total minus excluded, since Contributor Insights cannot negate a pattern.
+Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule, while `settings.exclude.iam_role_patterns` and `settings.exclude.security_group_name_patterns` match the names of the roles or security groups being changed with a `*` wildcard in any position - `prefix-*`, `*-suffix`, `*substring*` - switching that rule's alarm onto CloudWatch Logs metric filters that evaluate total minus excluded, since Contributor Insights cannot negate a pattern.
 
 ## Usage
 
@@ -81,8 +81,11 @@ settings: # (Required) CloudWatch Contributor Insights configuration for the CIS
       - "cloud9.amazonaws.com"
     security_groups: # (Optional) sg_changes rule - security group ids ($.requestParameters.groupId) to ignore. NOTE: CreateSecurityGroup does not carry groupId, so setting this drops CreateSecurityGroup from the rule. Default: [].
       - "sg-0a1b2c3d4e5f6a7b8"
-    security_group_names: # (Optional) sg_changes rule - security group names ($.requestParameters.groupName) to ignore. Default: [].
+    security_group_names: # (Optional) sg_changes rule - exact security group names ($.requestParameters.groupName) to ignore. Default: [].
       - "eks-cluster-sg-prod"
+    security_group_name_patterns: # (Optional) Patterns for the names of the security groups BEING CHANGED, kept out of the CIS-Security-Group-Changes alarm. "*" works in any position. NARROW BY DESIGN - CloudTrail carries groupName only on create and legacy name-based calls, so this mutes the alarm for a group's CREATION only; rule changes on it keep alarming. Default: [].
+      - "eks-cluster-sg-*" # starts with
+      - "*-tmp-sg" # ends with
     iam_roles: # (Optional) iam_changes rule - exact IAM role names ($.requestParameters.roleName) to ignore. NOTE: non-role IAM events do not carry roleName, so setting this narrows the rule to role events only. Default: [].
       - "ci-deployer"
     iam_role_patterns: # (Optional) Patterns for the names of the roles BEING CHANGED, kept out of the CIS-IAM-Changes alarm. Switches that alarm onto metric filters evaluating total minus excluded; the dashboard widget still ranks every contributor. Roles cannot be excluded by IAM path. Default: [].
@@ -179,7 +182,7 @@ terragrunt apply
 3. Set `settings.log_group_name` to that existing log group.
 4. Optionally add exclusions under `settings.exclude` for known benign noise - unauthorized API activity, specific security groups, or specific IAM roles. Exclusions are exact-match lists (no prefixes or wildcards) of at most 10 values each, and an exclusion narrows its rule to events that carry the matched field, so review the caveats above before setting `security_groups` or `iam_roles`.
 5. Optionally switch off individual rules under `settings.rules.<rule>.enabled` - each flag drops the Contributor Insights rule, its alarm and its dashboard widget together.
-6. To mute generated or automation-owned roles in the IAM alarm without losing them from the dashboard, list name patterns under `settings.exclude.iam_role_patterns` (`*` works at either end or both).
+6. To mute generated or automation-owned resources in an alarm without losing them from the dashboard, list name patterns under `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). Note that the security group variant only sees group names on creation - see the caveats in the usage section.
 7. Run `terragrunt plan` and `terragrunt apply`.
 
 

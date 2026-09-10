@@ -16,8 +16,11 @@
 #       - "cloud9.amazonaws.com"
 #     security_groups:                              # (Optional) sg_changes rule - $.requestParameters.groupId. Default: [].
 #       - "sg-0a1b2c3d4e5f6a7b8"
-#     security_group_names:                         # (Optional) sg_changes rule - $.requestParameters.groupName. Default: [].
+#     security_group_names:                         # (Optional) sg_changes rule - exact $.requestParameters.groupName values. Default: [].
 #       - "eks-cluster-sg-prod"
+#     security_group_name_patterns:                 # (Optional) sg_changes ALARM - $.requestParameters.groupName patterns. "*" works in any position. Default: [].
+#       - "eks-cluster-sg-*"                        #   starts with
+#       - "*-tmp-sg"                                #   ends with
 #     iam_roles:                                    # (Optional) iam_changes rule - exact $.requestParameters.roleName values. Default: [].
 #       - "ci-deployer"
 #     iam_role_patterns:                            # (Optional) iam_changes ALARM - $.requestParameters.roleName patterns. "*" works in any position. Default: [].
@@ -64,7 +67,7 @@
 #    NotStartsWith, no wildcards, no regex), so these must be full values. Each rule
 #    accepts at most 4 filters in total and each NotIn list at most 10 values.
 #
-# 2. pattern lists (iam_role_patterns) take "*" in any position - "prefix-*", "*-suffix",
+# 2. pattern lists (iam_role_patterns, security_group_name_patterns) take "*" in any position - "prefix-*", "*-suffix",
 #    "*substring*", or an exact name with no wildcard at all. They cannot be expressed as
 #    a rule filter, so setting one switches that rule's ALARM onto a pair of CloudWatch
 #    Logs metric filters: one counting every change the rule watches, one counting only
@@ -85,8 +88,14 @@
 #   - exclude.iam_roles matches $.requestParameters.roleName, which non-role IAM events
 #     (CreateUser, CreatePolicy, CreateAccessKey, AttachUserPolicy, ...) do not carry.
 # Set these only after confirming the resulting coverage against a real log group.
-# exclude.iam_role_patterns is not affected by that trap: events with no roleName never
-# match the exclusion filter, so they are never subtracted and stay in the alarm.
+# The pattern lists are not affected by that trap: an event whose matched field is absent
+# never matches the exclusion filter, so it is never subtracted and stays in the alarm.
+#
+# exclude.security_group_name_patterns is narrow for the same reason. groupName reaches
+# CloudTrail only on CreateSecurityGroup and on legacy name-based Authorize/Revoke calls;
+# in a VPC, Authorize, Revoke and Delete identify the group by groupId, and group ids are
+# random and cannot be pattern matched. Excluding a group by name therefore mutes the
+# alarm for its CREATION only - rule changes on it keep alarming.
 #
 # CloudTrail does not log the target role's path on role events other than CreateRole, so
 # roles cannot be excluded by IAM path (e.g. /my-path/) - match the role name instead.
@@ -104,29 +113,39 @@ variable "settings" {
     error_message = "Each settings.exclude list accepts at most 10 values - CloudWatch Contributor Insights limits a NotIn filter to 10 string values."
   }
 
+  # Each pattern list feeds its own filter pattern, so the 2 regex limit applies per list.
   validation {
-    condition = length([
-      for pattern in try(var.settings.exclude.iam_role_patterns, []) : pattern
-      if startswith(pattern, "%")
-    ]) <= 2
-    error_message = "settings.exclude.iam_role_patterns accepts at most 2 regex values (the %...% form) - CloudWatch Logs allows at most 2 regex per filter pattern. Combine them into a single regex with the | alternation operator."
+    condition = alltrue([
+      for list_name in ["iam_role_patterns", "security_group_name_patterns"] :
+      length([
+        for pattern in try(var.settings.exclude[list_name], []) : pattern
+        if startswith(pattern, "%")
+      ]) <= 2
+    ])
+    error_message = "Each pattern list under settings.exclude accepts at most 2 regex values (the %...% form) - CloudWatch Logs allows at most 2 regex per filter pattern. Combine them into a single regex with the | alternation operator."
   }
 
   validation {
     condition = alltrue([
-      for pattern in try(var.settings.exclude.iam_role_patterns, []) :
+      for pattern in concat(
+        try(var.settings.exclude.iam_role_patterns, []),
+        try(var.settings.exclude.security_group_name_patterns, []),
+      ) :
       endswith(pattern, "%") && length(pattern) >= 3
       if startswith(pattern, "%")
     ])
-    error_message = "A regex value in settings.exclude.iam_role_patterns must open and close with % and hold an expression between them, for example \"%.*-exec-role$%\"."
+    error_message = "A regex value in a settings.exclude pattern list must open and close with % and hold an expression between them, for example \"%.*-exec-role$%\"."
   }
 
   validation {
     condition = alltrue([
-      for pattern in try(var.settings.exclude.iam_role_patterns, []) :
+      for pattern in concat(
+        try(var.settings.exclude.iam_role_patterns, []),
+        try(var.settings.exclude.security_group_name_patterns, []),
+      ) :
       !strcontains(pattern, "(") && !strcontains(pattern, ")")
       if startswith(pattern, "%")
     ])
-    error_message = "CloudWatch Logs regex does not support parentheses, so a regex value in settings.exclude.iam_role_patterns cannot contain ( or ) - group alternatives with | instead."
+    error_message = "CloudWatch Logs regex does not support parentheses, so a regex value in a settings.exclude pattern list cannot contain ( or ) - group alternatives with | instead."
   }
 }

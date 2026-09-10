@@ -5,6 +5,48 @@
 #
 
 locals {
+  # Event names watched by the sg_changes rule. Shared by the Contributor Insights rule
+  # filter and by the metric filter patterns below so the two cannot drift.
+  sg_event_names = [
+    "AuthorizeSecurityGroupIngress",
+    "AuthorizeSecurityGroupEgress",
+    "RevokeSecurityGroupIngress",
+    "RevokeSecurityGroupEgress",
+    "CreateSecurityGroup",
+    "DeleteSecurityGroup",
+  ]
+
+  # Name patterns of the security groups BEING CHANGED, kept out of the sg_changes alarm.
+  # Same two forms and same mechanism as iam_role_patterns - see the notes on that local.
+  #
+  # Read the caveat before using this: CloudTrail carries
+  # $.requestParameters.groupName only on CreateSecurityGroup, and on the legacy
+  # name-based Authorize/Revoke calls. Authorize, Revoke and Delete against a group in a
+  # VPC identify it by $.requestParameters.groupId instead, and group ids are random, so
+  # they cannot be pattern matched. A group excluded by name therefore stops raising the
+  # alarm for its CREATION while every rule change on it keeps alarming. That is narrow on
+  # purpose - it is the most CloudTrail exposes.
+  sg_name_patterns = try(var.settings.exclude.security_group_name_patterns, [])
+
+  sg_event_name_condition = join(" || ", [
+    for name in local.sg_event_names : "$.eventName = \"${name}\""
+  ])
+
+  sg_changes_pattern = length(local.sg_name_patterns) == 0 ? null : format(
+    "{ (%s) }",
+    local.sg_event_name_condition,
+  )
+  sg_changes_exclude_pattern = length(local.sg_name_patterns) == 0 ? null : format(
+    "{ (%s) && (%s) }",
+    local.sg_event_name_condition,
+    join(" || ", [
+      for pattern in local.sg_name_patterns : format(
+        "$.requestParameters.groupName = %s",
+        startswith(pattern, "%") ? pattern : format("\"%s\"", pattern),
+      )
+    ]),
+  )
+
   # IAM event name prefixes watched by the iam_changes rule. Shared by the Contributor
   # Insights rule filter and by the metric filter pattern below so the two cannot drift.
   iam_event_prefixes = [
@@ -401,19 +443,15 @@ locals {
     title             = "Security Group Changes"
     alarm_description = "Monitoring of AWS VPC Security Group Changes will help to detect unauthorized access to VPC Security Groups."
     rule_state        = "ENABLED"
+    # Both non-null only when settings.exclude.security_group_name_patterns is set.
+    metric_filter_pattern         = local.sg_changes_pattern
+    metric_filter_exclude_pattern = local.sg_changes_exclude_pattern
     body = {
       AggregateOn = "Count"
       Contribution = {
         Filters = concat([
           {
-            In = [
-              "AuthorizeSecurityGroupIngress",
-              "AuthorizeSecurityGroupEgress",
-              "RevokeSecurityGroupIngress",
-              "RevokeSecurityGroupEgress",
-              "CreateSecurityGroup",
-              "DeleteSecurityGroup",
-            ]
+            In    = local.sg_event_names
             Match = "$.eventName"
           },
           ],

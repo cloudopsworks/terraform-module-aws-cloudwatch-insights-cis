@@ -10,8 +10,11 @@
 #       - "cloud9.amazonaws.com"
 #     security_groups: # (Optional) sg_changes rule - security group ids ($.requestParameters.groupId) to ignore. NOTE: CreateSecurityGroup does not carry groupId, so setting this drops CreateSecurityGroup from the rule. Default: [].
 #       - "sg-0a1b2c3d4e5f6a7b8"
-#     security_group_names: # (Optional) sg_changes rule - security group names ($.requestParameters.groupName) to ignore. Only create calls and legacy name-based calls carry groupName. Default: [].
+#     security_group_names: # (Optional) sg_changes rule - exact security group names ($.requestParameters.groupName) to ignore. Only create calls and legacy name-based calls carry groupName. Default: [].
 #       - "eks-cluster-sg-prod"
+#     security_group_name_patterns: # (Optional) Patterns for the names of the security groups BEING CHANGED, kept out of the CIS-Security-Group-Changes ALARM. Same forms as iam_role_patterns - "*" in any position, or a "%regex%". NARROW BY DESIGN: CloudTrail carries groupName only on CreateSecurityGroup and legacy name-based Authorize/Revoke calls; in a VPC the Authorize, Revoke and Delete calls identify the group by groupId, and group ids are random and cannot be pattern matched. Excluding a group by name mutes the alarm for its CREATION only - rule changes on it keep alarming. Default: [].
+#       - "eks-cluster-sg-*" # starts with
+#       - "*-tmp-sg" # ends with
 #     iam_roles: # (Optional) iam_changes rule - exact IAM role names ($.requestParameters.roleName) to ignore. NOTE: non-role IAM events (CreateUser, CreatePolicy, CreateAccessKey, ...) do not carry roleName, so setting this narrows the rule to role events only. Default: [].
 #       - "ci-deployer"
 #     iam_role_patterns: # (Optional) Patterns for the names of the roles BEING CHANGED, kept out of the CIS-IAM-Changes ALARM. Setting this switches that alarm onto a pair of CloudWatch Logs metric filters evaluating total minus excluded; the Contributor Insights rule and its dashboard widget still rank every contributor, so excluded roles stay visible on the dashboard and only the alarm stops firing for them. Roles cannot be excluded by IAM path - CloudTrail logs the target role's path on CreateRole only - so match the role name instead. Default: [].
