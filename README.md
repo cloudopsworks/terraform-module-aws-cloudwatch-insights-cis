@@ -72,7 +72,7 @@ The scaffolded `inputs.yaml` should contain the module-specific settings below:
 # Module configuration
 settings: # (Required) CloudWatch Contributor Insights configuration for the CIS alarm set.
   log_group_name: "/aws/cloudtrail/organization" # (Required) Existing CloudWatch log group name that receives the CloudTrail events to analyze.
-  exclude: # (Optional) Per-rule exclusions. Each list becomes an exact-match NotIn filter. Contributor Insights has no negated pattern operator, so prefixes and wildcards are not supported - list full values, max 10 per list. Default: omitted.
+  exclude: # (Optional) Per-rule exclusions, in two kinds. The exact-match lists become NotIn filters on the Contributor Insights rule itself - no wildcards there, Contributor Insights has no negated pattern operator, so list full values, max 10 per list. The *_patterns lists take a "*" wildcard in any position (or a "%regex%") and are applied to that rule's ALARM through CloudWatch Logs metric filters instead. Default: omitted.
     unauthorized_events: # (Optional) api_calls rule - CloudTrail event names ($.eventName) to ignore. Default: [].
       - "CreateUser"
       - "DeleteUser"
