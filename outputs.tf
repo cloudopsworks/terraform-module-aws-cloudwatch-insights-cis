@@ -28,3 +28,8 @@ output "cis_alarms" {
     }
   ]
 }
+
+output "cis_metric_filter_alarms" {
+  description = "Rule names whose alarm is driven by a CloudWatch Logs metric filter instead of the Contributor Insights rule metric, because pattern-based exclusions are configured for them."
+  value       = keys(local.metric_filter_rules)
+}
