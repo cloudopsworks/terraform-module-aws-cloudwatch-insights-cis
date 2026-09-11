@@ -197,6 +197,103 @@ run "exact_only_preserves_contributor_insights" {
   }
 }
 
+run "policy_name_exact_and_pattern_exclusions" {
+  command = plan
+  variables {
+    settings = {
+      log_group_name = "/aws/cloudtrail/test"
+      exclude = {
+        iam_roles                = ["excluded-role"]
+        iam_role_patterns        = ["*-exec-role"]
+        iam_policy_names         = ["excluded-policy", "another-policy"]
+        iam_policy_name_patterns = ["AWSLambdaBasicExecutionRole-*", "%^inline-[a-z]+$%"]
+      }
+    }
+  }
+  assert {
+    condition = strcontains(
+      aws_cloudwatch_log_metric_filter.this["CIS-IAM-Changes"].pattern,
+      "$.requestParameters.policyName = * && $.requestParameters.policyName != \"excluded-policy\" && $.requestParameters.policyName != \"another-policy\" &&",
+    )
+    error_message = "The exact policy-name list must require policyName and reject every listed value in the alarm filter."
+  }
+  assert {
+    condition = strcontains(
+      aws_cloudwatch_log_metric_filter.this["CIS-IAM-Changes"].pattern,
+      "(($.requestParameters.policyName NOT EXISTS) || ($.requestParameters.policyName IS NULL) || ($.requestParameters.policyName != \"AWSLambdaBasicExecutionRole-*\" && $.requestParameters.policyName != %^inline-[a-z]+$%))",
+    )
+    error_message = "Policy-name patterns must be ANDed as negatives while retaining absent/null policy names."
+  }
+  assert {
+    condition = strcontains(
+      aws_cloudwatch_log_metric_filter.this["CIS-IAM-Changes"].pattern,
+      "(($.requestParameters.roleName NOT EXISTS) || ($.requestParameters.roleName IS NULL) || ($.requestParameters.roleName != \"*-exec-role\"))",
+    )
+    error_message = "Role-name patterns must still apply alongside policy-name patterns."
+  }
+  assert {
+    condition = anytrue([
+      for filter in jsondecode(aws_cloudwatch_contributor_insight_rule.this["CIS-IAM-Changes"].rule_definition).Contribution.Filters :
+      filter.Match == "$.requestParameters.policyName" && try(contains(filter.NotIn, "excluded-policy"), false)
+    ])
+    error_message = "The exact policy-name list must become a NotIn filter on the Contributor Insights rule."
+  }
+  assert {
+    condition     = length(jsondecode(aws_cloudwatch_contributor_insight_rule.this["CIS-IAM-Changes"].rule_definition).Contribution.Filters) == 4
+    error_message = "With both exact IAM lists set, the Contributor Insights rule must hold exactly 4 filters (the API maximum)."
+  }
+}
+
+run "policy_name_patterns_only_switch_alarm" {
+  command = plan
+  variables {
+    settings = {
+      log_group_name = "/aws/cloudtrail/test"
+      exclude = {
+        iam_policy_name_patterns = ["*-inline-policy"]
+      }
+    }
+  }
+  assert {
+    condition = (
+      length(aws_cloudwatch_log_metric_filter.this) == 1 &&
+      strcontains(aws_cloudwatch_log_metric_filter.this["CIS-IAM-Changes"].pattern, "$.requestParameters.policyName != \"*-inline-policy\"") &&
+      !strcontains(aws_cloudwatch_log_metric_filter.this["CIS-IAM-Changes"].pattern, "roleName")
+    )
+    error_message = "A policy-name pattern alone must switch only the IAM alarm to the filtered metric, without any roleName condition."
+  }
+}
+
+run "policy_name_exact_only_preserves_contributor_insights" {
+  command = plan
+  variables {
+    settings = {
+      log_group_name = "/aws/cloudtrail/test"
+      exclude = {
+        iam_policy_names = ["excluded-policy"]
+      }
+    }
+  }
+  assert {
+    condition     = length(aws_cloudwatch_log_metric_filter.this) == 0 && length(aws_cloudwatch_metric_alarm.this) == 14
+    error_message = "An exact policy-name list alone must keep the Contributor Insights alarm path."
+  }
+}
+
+run "combined_iam_regex_limit_rejected" {
+  command = plan
+  variables {
+    settings = {
+      log_group_name = "/aws/cloudtrail/test"
+      exclude = {
+        iam_role_patterns        = ["%^a$%", "%^b$%"]
+        iam_policy_name_patterns = ["%^c$%"]
+      }
+    }
+  }
+  expect_failures = [var.settings]
+}
+
 run "oversized_pattern_rejected" {
   command = plan
   variables {

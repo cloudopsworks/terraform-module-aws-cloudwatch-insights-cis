@@ -32,6 +32,11 @@
 #       - "*exec*"                                  #   contains
 #       - "exact-role-name"                         #   exact, no wildcard
 #       - "%^svc-[a-z]+-role$%"                     #   regex, only for what "*" cannot do
+#     iam_policy_names:                             # (Optional) iam_changes rule - exact $.requestParameters.policyName values. Default: [].
+#       - "ci-deployer-inline"
+#     iam_policy_name_patterns:                     # (Optional) iam_changes ALARM - $.requestParameters.policyName patterns. Same forms and metric as iam_role_patterns; exact IAM exclusions also apply. Default: [].
+#       - "AWSLambdaBasicExecutionRole-*"           #   starts with
+#       - "*-inline-policy"                         #   ends with
 #   rules:                                          # (Optional) Per-rule switches, every rule is enabled by default.
 #     api_calls:
 #       enabled: true                               # (Optional) Unauthorized API Calls. Default: true
@@ -65,12 +70,13 @@
 # Two kinds of exclusion, applied at different layers:
 #
 # 1. exact-match lists (unauthorized_events, unauthorized_sources, security_groups,
-#    security_group_names, iam_roles) become NotIn filters on the Contributor Insights
+#    security_group_names, iam_roles, iam_policy_names) become NotIn filters on the Contributor Insights
 #    rule itself. Contributor Insights offers no negated pattern operator (no
 #    NotStartsWith, no wildcards, no regex), so these must be full values. Each rule
 #    accepts at most 4 filters in total and each NotIn list at most 10 values.
 #
-# 2. pattern lists (iam_role_patterns, security_group_name_patterns) take "*" in any position - "prefix-*", "*-suffix",
+# 2. pattern lists (iam_role_patterns, iam_policy_name_patterns, security_group_name_patterns)
+#    take "*" in any position - "prefix-*", "*-suffix",
 #    "*substring*", or an exact name with no wildcard at all. They cannot be expressed as
 #    a Contributor Insights filter, so setting one switches that rule's ALARM to one
 #    directly filtered CloudWatch Logs metric, <rule-name>-Matched, in CIS-Monitoring.
@@ -80,8 +86,9 @@
 #
 #    A value wrapped in percent signs is passed through as a CloudWatch Logs regex
 #    ("%^svc-[a-z]+-role$%") for what a wildcard cannot express. It is never needed for a
-#    prefix, suffix or substring. At most 2 values may use the regex form - the API
-#    rejects a third - and regex cannot contain parentheses; use "|" to group.
+#    prefix, suffix or substring. At most 2 values per rule may use the regex form - the
+#    API rejects a third - and regex cannot contain parentheses; use "|" to group. The two
+#    iam_changes pattern lists share one filter pattern, so their regex count is combined.
 #
 # Caveat: a NotIn filter is only satisfied by events that actually carry the matched
 # field, so an exclusion narrows its rule to events where the field is present:
@@ -89,6 +96,11 @@
 #     does not carry (it reports the new id in responseElements).
 #   - exclude.iam_roles matches $.requestParameters.roleName, which non-role IAM events
 #     (CreateUser, CreatePolicy, CreateAccessKey, AttachUserPolicy, ...) do not carry.
+#   - exclude.iam_policy_names matches $.requestParameters.policyName, which only inline
+#     policy events (Put/Delete{Role,User,Group}Policy) and CreatePolicy carry. Attach*,
+#     Detach* and CreatePolicyVersion identify the policy by policyArn, not by name.
+#   - setting BOTH exclude.iam_roles and exclude.iam_policy_names narrows iam_changes to
+#     events carrying both fields - PutRolePolicy and DeleteRolePolicy only.
 # Set these only after confirming the resulting coverage against a real log group.
 # A missing or null name never matches a pattern and remains in the pattern-mode alarm,
 # unless a configured exact exclusion requires that field to be present.
@@ -103,34 +115,36 @@
 # roles cannot be excluded by IAM path (e.g. /my-path/) - match the role name instead.
 
 variable "settings" {
-  description = "Settings for the insights. Supports log_group_name (Required), exclude (Optional) for per-rule NotIn exclusions, and rules (Optional) where each rule key accepts enabled to switch the Contributor Insights rule, its alarm and its dashboard widget on or off. Default: {} - all rules enabled, no exclusions."
+  description = "Settings for the insights. Supports log_group_name (Required), exclude (Optional) for per-rule exact NotIn lists and alarm-only name-pattern lists, and rules (Optional) where each rule key accepts enabled to switch the Contributor Insights rule, its alarm and its dashboard widget on or off. Default: {} - all rules enabled, no exclusions."
   type        = any
   default     = {}
 
   validation {
     condition = alltrue([
-      for list_name in ["unauthorized_events", "unauthorized_sources", "security_groups", "security_group_names", "iam_roles"] :
+      for list_name in ["unauthorized_events", "unauthorized_sources", "security_groups", "security_group_names", "iam_roles", "iam_policy_names"] :
       length(try(var.settings.exclude[list_name], [])) <= 10
     ])
     error_message = "Each settings.exclude list accepts at most 10 values - CloudWatch Contributor Insights limits a NotIn filter to 10 string values."
   }
 
-  # Each pattern list feeds its own filter pattern, so the 2 regex limit applies per list.
+  # Each rule feeds one filter pattern, so the 2 regex limit applies per rule - the two
+  # iam_changes lists count together.
   validation {
     condition = alltrue([
-      for list_name in ["iam_role_patterns", "security_group_name_patterns"] :
+      for rule_lists in [["iam_role_patterns", "iam_policy_name_patterns"], ["security_group_name_patterns"]] :
       length([
-        for pattern in try(var.settings.exclude[list_name], []) : pattern
+        for pattern in flatten([for list_name in rule_lists : try(var.settings.exclude[list_name], [])]) : pattern
         if startswith(pattern, "%")
       ]) <= 2
     ])
-    error_message = "Each pattern list under settings.exclude accepts at most 2 regex values (the %...% form) - CloudWatch Logs allows at most 2 regex per filter pattern. Combine them into a single regex with the | alternation operator."
+    error_message = "The pattern lists under settings.exclude accept at most 2 regex values (the %...% form) per rule - iam_role_patterns and iam_policy_name_patterns combined, and security_group_name_patterns on its own - because CloudWatch Logs allows at most 2 regex per filter pattern. Combine them into a single regex with the | alternation operator."
   }
 
   validation {
     condition = alltrue([
       for pattern in concat(
         try(var.settings.exclude.iam_role_patterns, []),
+        try(var.settings.exclude.iam_policy_name_patterns, []),
         try(var.settings.exclude.security_group_name_patterns, []),
       ) :
       endswith(pattern, "%") && length(pattern) >= 3
@@ -143,6 +157,7 @@ variable "settings" {
     condition = alltrue([
       for pattern in concat(
         try(var.settings.exclude.iam_role_patterns, []),
+        try(var.settings.exclude.iam_policy_name_patterns, []),
         try(var.settings.exclude.security_group_name_patterns, []),
       ) :
       !strcontains(pattern, "(") && !strcontains(pattern, ")")

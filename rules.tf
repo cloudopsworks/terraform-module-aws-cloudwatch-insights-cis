@@ -103,32 +103,61 @@ locals {
   # both forms lives on the settings variable.
   iam_role_patterns = try(var.settings.exclude.iam_role_patterns, [])
 
+  # Name patterns of the policies BEING CHANGED, kept out of the iam_changes alarm. Same
+  # two forms and same mechanism as iam_role_patterns above. CloudTrail carries
+  # $.requestParameters.policyName on inline-policy events (PutRolePolicy,
+  # DeleteRolePolicy, PutUserPolicy, DeleteUserPolicy, PutGroupPolicy, DeleteGroupPolicy)
+  # and on CreatePolicy. Attach*/Detach* and CreatePolicyVersion identify the policy by
+  # policyArn instead, so a managed policy cannot be excluded by name on those events.
+  iam_policy_name_patterns = try(var.settings.exclude.iam_policy_name_patterns, [])
+
+  # Any pattern list switches the iam_changes alarm to the directly filtered metric.
+  iam_name_patterns = {
+    roleName   = local.iam_role_patterns
+    policyName = local.iam_policy_name_patterns
+  }
+
   # The eventName condition shared by Contributor Insights and the alarm filter.
   iam_event_name_condition = join(" || ", [
     for prefix in local.iam_event_prefixes : "$.eventName = \"${prefix}*\""
   ])
 
-  iam_exact_conditions = concat(
-    length(try(var.settings.exclude.iam_roles, [])) > 0 ? ["$.requestParameters.roleName = *"] : [],
-    [for role in try(var.settings.exclude.iam_roles, []) :
-      format("$.requestParameters.roleName != %s", jsonencode(role))
-    ],
-  )
+  # Keep exact-list semantics when switching the alarm away from Contributor Insights.
+  # Each configured exact list requires its field and rejects every listed value.
+  iam_exact_conditions = flatten([
+    for field, values in {
+      roleName   = try(var.settings.exclude.iam_roles, [])
+      policyName = try(var.settings.exclude.iam_policy_names, [])
+      } : concat(
+      length(values) > 0 ? ["$.requestParameters.${field} = *"] : [],
+      [for value in values : format("$.requestParameters.%s != %s", field, jsonencode(value))],
+    )
+  ])
 
-  iam_changes_pattern = length(local.iam_role_patterns) == 0 ? null : format(
+  # One group per configured pattern list. Absent/null names cannot match a pattern, so
+  # pattern-only exclusions retain them.
+  iam_pattern_conditions = [
+    for field, patterns in local.iam_name_patterns : format(
+      "(($.requestParameters.%s NOT EXISTS) || ($.requestParameters.%s IS NULL) || (%s))",
+      field,
+      field,
+      join(" && ", [
+        for pattern in patterns : format(
+          "$.requestParameters.%s != %s",
+          field,
+          startswith(pattern, "%") ? pattern : jsonencode(pattern),
+        )
+      ]),
+    )
+    if length(patterns) > 0
+  ]
+
+  iam_changes_pattern = length(local.iam_pattern_conditions) == 0 ? null : format(
     "{ %s }",
     join(" && ", concat(
       ["($.eventSource = \"iam.amazonaws.com\")", format("(%s)", local.iam_event_name_condition)],
       local.iam_exact_conditions,
-      [format(
-        "(($.requestParameters.roleName NOT EXISTS) || ($.requestParameters.roleName IS NULL) || (%s))",
-        join(" && ", [
-          for pattern in local.iam_role_patterns : format(
-            "$.requestParameters.roleName != %s",
-            startswith(pattern, "%") ? pattern : jsonencode(pattern),
-          )
-        ]),
-      )],
+      local.iam_pattern_conditions,
     )),
   )
 
@@ -680,6 +709,12 @@ locals {
             {
               NotIn = var.settings.exclude.iam_roles
               Match = "$.requestParameters.roleName"
+            },
+          ] : [],
+          length(try(var.settings.exclude.iam_policy_names, [])) > 0 ? [
+            {
+              NotIn = var.settings.exclude.iam_policy_names
+              Match = "$.requestParameters.policyName"
             },
         ] : [])
         Keys = [
