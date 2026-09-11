@@ -1,7 +1,10 @@
 ##
-# (c) 2024 - Cloud Ops Works LLC - https://cloudops.works/
-#            On GitHub: https://github.com/cloudopsworks
-#            Distributed Under Apache v2.0 License
+# (c) 2021-2026
+#     Cloud Ops Works LLC - https://cloudops.works/
+#     Find us on:
+#       GitHub: https://github.com/cloudopsworks
+#       WebSite: https://cloudops.works
+#     Distributed Under Apache v2.0 License
 #
 
 resource "aws_cloudwatch_metric_alarm" "this" {
@@ -21,9 +24,7 @@ resource "aws_cloudwatch_metric_alarm" "this" {
     aws_sns_topic.cis_alarm_topic.arn,
   ]
 
-  # One query for a Contributor Insights backed alarm, three for a metric filter backed
-  # one (total, excluded, and the subtraction that is evaluated) - see
-  # local.alarm_metric_queries.
+  # One query: either the Contributor Insights expression or a directly filtered metric.
   dynamic "metric_query" {
     for_each = local.alarm_metric_queries[each.key]
     content {
@@ -50,6 +51,5 @@ resource "aws_cloudwatch_metric_alarm" "this" {
 
   depends_on = [
     aws_cloudwatch_log_metric_filter.this,
-    aws_cloudwatch_log_metric_filter.excluded,
   ]
 }

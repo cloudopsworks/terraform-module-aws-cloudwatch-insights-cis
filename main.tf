@@ -1,7 +1,10 @@
 ##
-# (c) 2024 - Cloud Ops Works LLC - https://cloudops.works/
-#            On GitHub: https://github.com/cloudopsworks
-#            Distributed Under Apache v2.0 License
+# (c) 2021-2026
+#     Cloud Ops Works LLC - https://cloudops.works/
+#     Find us on:
+#       GitHub: https://github.com/cloudopsworks
+#       WebSite: https://cloudops.works
+#     Distributed Under Apache v2.0 License
 #
 
 locals {
@@ -40,9 +43,8 @@ locals {
     if try(item.metric_filter_pattern, null) != null
   }
 
-  # Metric query shape per alarm. Rules with pattern exclusions subtract the excluded
-  # subset from the total with metric math; every other rule reads its Contributor
-  # Insights rule metric directly, exactly as before.
+  # Pattern-mode alarms read one filtered count. The new metric name avoids reusing
+  # historical unfiltered totals during migration. Other rules retain Contributor Insights.
   alarm_metric_queries = {
     for item in local.insight_rules : item.name => (
       try(item.metric_filter_pattern, null) == null ? [
@@ -56,29 +58,10 @@ locals {
         },
         ] : [
         {
-          id          = "total"
-          label       = format("%s total", item.name)
-          expression  = null
-          metric_name = item.name
-          period      = null
-          return_data = false
-        },
-        {
-          id          = "excluded"
-          label       = format("%s excluded", item.name)
-          expression  = null
-          metric_name = format("%s-Excluded", item.name)
-          period      = null
-          return_data = false
-        },
-        {
-          # FILL guards the periods where the excluded series has no datapoint at all,
-          # which would otherwise leave the subtraction with no value and silently skip
-          # the evaluation.
-          id          = "net"
+          id          = "matched"
           label       = item.name
-          expression  = "total - FILL(excluded, 0)"
-          metric_name = null
+          expression  = null
+          metric_name = format("%s-Matched", item.name)
           period      = null
           return_data = true
         },

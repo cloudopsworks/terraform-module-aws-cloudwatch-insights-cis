@@ -1,12 +1,15 @@
 ##
-# (c) 2024 - Cloud Ops Works LLC - https://cloudops.works/
-#            On GitHub: https://github.com/cloudopsworks
-#            Distributed Under Apache v2.0 License
+# (c) 2021-2026
+#     Cloud Ops Works LLC - https://cloudops.works/
+#     Find us on:
+#       GitHub: https://github.com/cloudopsworks
+#       WebSite: https://cloudops.works
+#     Distributed Under Apache v2.0 License
 #
 
 locals {
   # Event names watched by the sg_changes rule. Shared by the Contributor Insights rule
-  # filter and by the metric filter patterns below so the two cannot drift.
+  # filter and the alarm metric filter below so the two cannot drift.
   sg_event_names = [
     "AuthorizeSecurityGroupIngress",
     "AuthorizeSecurityGroupEgress",
@@ -32,19 +35,35 @@ locals {
     for name in local.sg_event_names : "$.eventName = \"${name}\""
   ])
 
+  # Keep exact-list semantics when switching the alarm away from Contributor Insights.
+  # Each configured exact list requires its field and rejects every listed value.
+  sg_exact_conditions = flatten([
+    for field, values in {
+      groupId   = try(var.settings.exclude.security_groups, [])
+      groupName = try(var.settings.exclude.security_group_names, [])
+      } : concat(
+      length(values) > 0 ? ["$.requestParameters.${field} = *"] : [],
+      [for value in values : format("$.requestParameters.%s != %s", field, jsonencode(value))],
+    )
+  ])
+
+  # Count retained events directly; never subtract a second, possibly delayed metric.
+  # Absent/null names cannot match a name pattern, so pattern-only exclusions retain them.
   sg_changes_pattern = length(local.sg_name_patterns) == 0 ? null : format(
-    "{ (%s) }",
-    local.sg_event_name_condition,
-  )
-  sg_changes_exclude_pattern = length(local.sg_name_patterns) == 0 ? null : format(
-    "{ (%s) && (%s) }",
-    local.sg_event_name_condition,
-    join(" || ", [
-      for pattern in local.sg_name_patterns : format(
-        "$.requestParameters.groupName = %s",
-        startswith(pattern, "%") ? pattern : format("\"%s\"", pattern),
-      )
-    ]),
+    "{ %s }",
+    join(" && ", concat(
+      [format("(%s)", local.sg_event_name_condition)],
+      local.sg_exact_conditions,
+      [format(
+        "(($.requestParameters.groupName NOT EXISTS) || ($.requestParameters.groupName IS NULL) || (%s))",
+        join(" && ", [
+          for pattern in local.sg_name_patterns : format(
+            "$.requestParameters.groupName != %s",
+            startswith(pattern, "%") ? pattern : jsonencode(pattern),
+          )
+        ]),
+      )],
+    )),
   )
 
   # IAM event name prefixes watched by the iam_changes rule. Shared by the Contributor
@@ -63,10 +82,9 @@ locals {
   # Contributor Insights filter cannot express them (it has no negated pattern operator),
   # so they are applied through the CloudWatch Logs metric filters that back the alarm
   # instead of INSIGHT_RULE_METRIC. The Contributor Insights rule and its dashboard widget
-  # are unchanged and still rank every contributor, excluded roles included.
+  # still apply exact exclusions; pattern-excluded roles remain visible for investigation.
   #
-  # Values are passed through verbatim. A plain string takes "*" in any position, each
-  # form verified against logs:TestMetricFilter:
+  # Plain strings use CloudWatch JSON wildcard matching with "*" in any position:
   #
   #   "svc-*"         starts with  -> svc-exec-role, svc-exec-role-extra
   #   "*-exec-role"   ends with    -> svc-exec-role, but NOT svc-exec-role-extra
@@ -85,31 +103,33 @@ locals {
   # both forms lives on the settings variable.
   iam_role_patterns = try(var.settings.exclude.iam_role_patterns, [])
 
-  # The eventName arm shared by both metric filter patterns below.
+  # The eventName condition shared by Contributor Insights and the alarm filter.
   iam_event_name_condition = join(" || ", [
     for prefix in local.iam_event_prefixes : "$.eventName = \"${prefix}*\""
   ])
 
-  # Exclusion is applied by subtraction rather than by negating the pattern: one metric
-  # filter counts every IAM change the rule watches, a second counts only the changes to
-  # excluded roles, and the alarm evaluates total - excluded. This uses only documented
-  # constructs - a regex with "=" - and avoids needing to negate a regex or to special
-  # case IAM events that carry no roleName at all (CreateUser, CreatePolicy,
-  # CreateAccessKey, AttachUserPolicy, ...): those simply never land in the excluded
-  # count, so they stay in the alarm.
-  iam_changes_pattern = length(local.iam_role_patterns) == 0 ? null : format(
-    "{ ($.eventSource = \"iam.amazonaws.com\") && (%s) }",
-    local.iam_event_name_condition,
+  iam_exact_conditions = concat(
+    length(try(var.settings.exclude.iam_roles, [])) > 0 ? ["$.requestParameters.roleName = *"] : [],
+    [for role in try(var.settings.exclude.iam_roles, []) :
+      format("$.requestParameters.roleName != %s", jsonencode(role))
+    ],
   )
-  iam_changes_exclude_pattern = length(local.iam_role_patterns) == 0 ? null : format(
-    "{ ($.eventSource = \"iam.amazonaws.com\") && (%s) && (%s) }",
-    local.iam_event_name_condition,
-    join(" || ", [
-      for pattern in local.iam_role_patterns : format(
-        "$.requestParameters.roleName = %s",
-        startswith(pattern, "%") ? pattern : format("\"%s\"", pattern),
-      )
-    ]),
+
+  iam_changes_pattern = length(local.iam_role_patterns) == 0 ? null : format(
+    "{ %s }",
+    join(" && ", concat(
+      ["($.eventSource = \"iam.amazonaws.com\")", format("(%s)", local.iam_event_name_condition)],
+      local.iam_exact_conditions,
+      [format(
+        "(($.requestParameters.roleName NOT EXISTS) || ($.requestParameters.roleName IS NULL) || (%s))",
+        join(" && ", [
+          for pattern in local.iam_role_patterns : format(
+            "$.requestParameters.roleName != %s",
+            startswith(pattern, "%") ? pattern : jsonencode(pattern),
+          )
+        ]),
+      )],
+    )),
   )
 
   api_calls = {
@@ -443,9 +463,8 @@ locals {
     title             = "Security Group Changes"
     alarm_description = "Monitoring of AWS VPC Security Group Changes will help to detect unauthorized access to VPC Security Groups."
     rule_state        = "ENABLED"
-    # Both non-null only when settings.exclude.security_group_name_patterns is set.
-    metric_filter_pattern         = local.sg_changes_pattern
-    metric_filter_exclude_pattern = local.sg_changes_exclude_pattern
+    # Direct filtered metric only when name patterns are configured.
+    metric_filter_pattern = local.sg_changes_pattern
     body = {
       AggregateOn = "Count"
       Contribution = {
@@ -640,9 +659,8 @@ locals {
     title             = "IAM Changes"
     alarm_description = "Monitoring of all IAM Changes will help to detect unauthorized access to IAM."
     rule_state        = "ENABLED"
-    # Both non-null only when settings.exclude.iam_role_patterns is set - see locals above.
-    metric_filter_pattern         = local.iam_changes_pattern
-    metric_filter_exclude_pattern = local.iam_changes_exclude_pattern
+    # Direct filtered metric only when name patterns are configured.
+    metric_filter_pattern = local.iam_changes_pattern
     body = {
       AggregateOn = "Count"
       Contribution = {
