@@ -1,13 +1,16 @@
 ##
-# (c) 2024 - Cloud Ops Works LLC - https://cloudops.works/
-#            On GitHub: https://github.com/cloudopsworks
-#            Distributed Under Apache v2.0 License
+# (c) 2021-2026
+#     Cloud Ops Works LLC - https://cloudops.works/
+#     Find us on:
+#       GitHub: https://github.com/cloudopsworks
+#       WebSite: https://cloudops.works
+#     Distributed Under Apache v2.0 License
 #
 
 # YAML sample for module inputs
 # settings:
 #   log_group_name: "/aws/cloudtrail/organization"  # (Required) Existing log group holding the CloudTrail events.
-#   exclude:                                        # (Optional) Per-rule exclusions. Each list is an exact-match NotIn filter, max 10 values.
+#   exclude:                                        # (Optional) Per-rule exact and pattern exclusions; exact lists accept max 10 values. Default: omitted.
 #     unauthorized_events:                          # (Optional) api_calls rule - $.eventName. Default: [].
 #       - "CreateUser"
 #       - "DeleteUser"
@@ -18,12 +21,12 @@
 #       - "sg-0a1b2c3d4e5f6a7b8"
 #     security_group_names:                         # (Optional) sg_changes rule - exact $.requestParameters.groupName values. Default: [].
 #       - "eks-cluster-sg-prod"
-#     security_group_name_patterns:                 # (Optional) sg_changes ALARM - $.requestParameters.groupName patterns. "*" works in any position. Default: [].
+#     security_group_name_patterns:                 # (Optional) sg_changes ALARM - $.requestParameters.groupName patterns. Uses CIS-Security-Group-Changes-Matched; exact SG exclusions also apply. "*" works in any position. Default: [].
 #       - "eks-cluster-sg-*"                        #   starts with
 #       - "*-tmp-sg"                                #   ends with
 #     iam_roles:                                    # (Optional) iam_changes rule - exact $.requestParameters.roleName values. Default: [].
 #       - "ci-deployer"
-#     iam_role_patterns:                            # (Optional) iam_changes ALARM - $.requestParameters.roleName patterns. "*" works in any position. Default: [].
+#     iam_role_patterns:                            # (Optional) iam_changes ALARM - $.requestParameters.roleName patterns. Uses CIS-IAM-Changes-Matched; exact IAM-role exclusions also apply. "*" works in any position. Default: [].
 #       - "cognito-lambda-auth-*"                   #   starts with
 #       - "*-exec-role"                             #   ends with
 #       - "*exec*"                                  #   contains
@@ -69,12 +72,11 @@
 #
 # 2. pattern lists (iam_role_patterns, security_group_name_patterns) take "*" in any position - "prefix-*", "*-suffix",
 #    "*substring*", or an exact name with no wildcard at all. They cannot be expressed as
-#    a rule filter, so setting one switches that rule's ALARM onto a pair of CloudWatch
-#    Logs metric filters: one counting every change the rule watches, one counting only
-#    the changes to excluded roles, with the alarm evaluating total - excluded. The
-#    Contributor Insights rule and its dashboard widget are untouched and still rank every
-#    contributor, so excluded roles remain visible on the dashboard - only the alarm stops
-#    firing for them.
+#    a Contributor Insights filter, so setting one switches that rule's ALARM to one
+#    directly filtered CloudWatch Logs metric, <rule-name>-Matched, in CIS-Monitoring.
+#    The filter keeps only nonexcluded events and includes configured exact-list presence
+#    and NotIn conditions. Contributor Insights/dashboard still apply exact exclusions,
+#    while pattern-excluded events can remain visible there for investigation.
 #
 #    A value wrapped in percent signs is passed through as a CloudWatch Logs regex
 #    ("%^svc-[a-z]+-role$%") for what a wildcard cannot express. It is never needed for a
@@ -88,8 +90,8 @@
 #   - exclude.iam_roles matches $.requestParameters.roleName, which non-role IAM events
 #     (CreateUser, CreatePolicy, CreateAccessKey, AttachUserPolicy, ...) do not carry.
 # Set these only after confirming the resulting coverage against a real log group.
-# The pattern lists are not affected by that trap: an event whose matched field is absent
-# never matches the exclusion filter, so it is never subtracted and stays in the alarm.
+# A missing or null name never matches a pattern and remains in the pattern-mode alarm,
+# unless a configured exact exclusion requires that field to be present.
 #
 # exclude.security_group_name_patterns is narrow for the same reason. groupName reaches
 # CloudTrail only on CreateSecurityGroup and on legacy name-based Authorize/Revoke calls;

@@ -49,7 +49,7 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 Use this module when you already centralize AWS CloudTrail events in CloudWatch Logs and want opinionated CIS monitoring on top of that stream.
 The module reads one existing log group, builds a curated set of Contributor Insights rules for key CIS control areas, publishes alarm notifications through SNS, and exposes a dashboard that operators can review during incident response or compliance reviews.
 Every rule ships enabled; `settings.rules.<rule>.enabled` lets you switch individual rules off selectively, which also removes the matching alarm and dashboard widget.
-Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule, while `settings.exclude.iam_role_patterns` and `settings.exclude.security_group_name_patterns` match the names of the roles or security groups being changed with a `*` wildcard in any position - `prefix-*`, `*-suffix`, `*substring*` - switching that rule's alarm onto CloudWatch Logs metric filters that evaluate total minus excluded, since Contributor Insights cannot negate a pattern.
+Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule. When `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` is nonempty, its rule's alarm instead reads one directly filtered `<rule-name>-Matched` CloudWatch Logs metric in `CIS-Monitoring`. That filter applies both exact and pattern exclusions, so excluded events do not contribute to that rule's alarm; Contributor Insights/dashboard still apply exact exclusions, but can show pattern-excluded events for investigation.
 
 ## Usage
 
@@ -72,7 +72,7 @@ The scaffolded `inputs.yaml` should contain the module-specific settings below:
 # Module configuration
 settings: # (Required) CloudWatch Contributor Insights configuration for the CIS alarm set.
   log_group_name: "/aws/cloudtrail/organization" # (Required) Existing CloudWatch log group name that receives the CloudTrail events to analyze.
-  exclude: # (Optional) Per-rule exclusions, in two kinds. The exact-match lists become NotIn filters on the Contributor Insights rule itself - no wildcards there, Contributor Insights has no negated pattern operator, so list full values, max 10 per list. The *_patterns lists take a "*" wildcard in any position (or a "%regex%") and are applied to that rule's ALARM through CloudWatch Logs metric filters instead. Default: omitted.
+  exclude: # (Optional) Per-rule exclusions. Exact lists are NotIn filters on Contributor Insights and, when a name-pattern list is set, also restrict that rule's directly filtered alarm metric. Pattern lists accept "*" in any position (or a "%regex%") and affect only the alarm; Contributor Insights/dashboard can still show pattern-excluded events. Default: omitted.
     unauthorized_events: # (Optional) api_calls rule - CloudTrail event names ($.eventName) to ignore. Default: [].
       - "CreateUser"
       - "DeleteUser"
@@ -83,12 +83,12 @@ settings: # (Required) CloudWatch Contributor Insights configuration for the CIS
       - "sg-0a1b2c3d4e5f6a7b8"
     security_group_names: # (Optional) sg_changes rule - exact security group names ($.requestParameters.groupName) to ignore. Default: [].
       - "eks-cluster-sg-prod"
-    security_group_name_patterns: # (Optional) Patterns for the names of the security groups BEING CHANGED, kept out of the CIS-Security-Group-Changes alarm. "*" works in any position. NARROW BY DESIGN - CloudTrail carries groupName only on create and legacy name-based calls, so this mutes the alarm for a group's CREATION only; rule changes on it keep alarming. Default: [].
+    security_group_name_patterns: # (Optional) Patterns for security-group names kept out of the CIS-Security-Group-Changes alarm. Uses directly filtered CIS-Monitoring/CIS-Security-Group-Changes-Matched; exact SG exclusions also apply. Missing/null groupName remains an alarm candidate unless an exact exclusion requires presence. NARROW BY DESIGN - CloudTrail carries groupName only on create and legacy name-based calls, so VPC ID-only changes cannot be name-pattern matched. Default: [].
       - "eks-cluster-sg-*" # starts with
       - "*-tmp-sg" # ends with
     iam_roles: # (Optional) iam_changes rule - exact IAM role names ($.requestParameters.roleName) to ignore. NOTE: non-role IAM events do not carry roleName, so setting this narrows the rule to role events only. Default: [].
       - "ci-deployer"
-    iam_role_patterns: # (Optional) Patterns for the names of the roles BEING CHANGED, kept out of the CIS-IAM-Changes alarm. Switches that alarm onto metric filters evaluating total minus excluded; the dashboard widget still ranks every contributor. Roles cannot be excluded by IAM path. Default: [].
+    iam_role_patterns: # (Optional) Patterns for role names kept out of the CIS-IAM-Changes alarm. Uses directly filtered CIS-Monitoring/CIS-IAM-Changes-Matched; exact IAM-role exclusions also apply. Missing/null roleName remains an alarm candidate unless the exact list requires presence. Contributor Insights/dashboard can still show pattern-excluded events. Roles cannot be excluded by IAM path. Default: [].
       - "cognito-lambda-auth-*" # "*" at the end - starts with
       - "*-exec-role" # "*" at the start - ends with
       - "*exec*" # "*" at both ends - contains
@@ -190,7 +190,8 @@ not CloudTrail Lake SQL or CloudTrail Event history lookup expressions.
    to inspect delivery delays, then narrow to the datapoint interval.
 3. Run that rule's query. The baseline queries assume no optional exclusions; apply the
    documented adjustments using the settings deployed **when the alarm fired**.
-   IAM and security-group pattern exclusions require the alternate alarm query below.
+   IAM and security-group name-pattern exclusions require the alternate query below; apply
+   its exact-exclusion snippets too when those lists are configured.
 4. Inspect `eventID`, `eventTime`, the caller identity, source IP, request parameters,
    error and `@message` to identify the underlying action. No general success-only filter
    is applied: failed change attempts count when the implemented rule matches them.
@@ -198,8 +199,16 @@ not CloudTrail Lake SQL or CloudTrail Event history lookup expressions.
 All alarms evaluate a count **>= 1** over **300 seconds**, with one evaluation period
 and one breaching datapoint required; missing data is treated as not breaching. Normally
 this is `INSIGHT_RULE_METRIC('<alarm-name>', 'Sum')` for a rule with `AggregateOn = Count`.
-For IAM/security-group pattern mode it is `total - FILL(excluded, 0)` in namespace
-`CIS-Monitoring`. See `main.tf` and `cloudwatch-alarms.tf` for the deployed expressions.
+For IAM/security-group name-pattern mode it is the directly filtered
+`CIS-Monitoring/<alarm-name>-Matched` metric with `Sum` and a 300-second period. The metric
+filter counts only nonexcluded events; excluded events cannot increase its alarm count.
+See `main.tf` and `cloudwatch-alarms.tf` for the deployed queries.
+
+**Upgrade note:** the former `-Excluded` metric filters and total-minus-excluded alarm
+expressions are removed. Pattern-mode alarms now read a new `-Matched` metric name, isolating
+them from old unfiltered metric history; after deployment, only nonexcluded new events can
+contribute to the alarm. Setting `settings.rules.<rule>.enabled = false` removes that entire rule's
+Contributor Insights rule, alarm, dashboard widget, and any pattern-mode metric filter.
 
 Each raw-event query ends in `sort` and `limit 1000`. To compare **counts per alarm period**,
 replace those final two commands (do not append after the limit) with:
@@ -234,7 +243,8 @@ reference does not define missing-key handling. If a count differs, inspect thos
 and compare with the Contributor Insights report before treating every row as a contributor.
 For `NotIn` filters (including optional exclusions), the explicit presence checks follow this module's
 missing-field caveat in `variables-cloudwatch.tf`; do not replace them with an expression
-that retains missing fields. Pattern-mode metric filters have no contributor-key checks.
+that retains missing fields. Pattern-mode metrics preserve the exact-list presence checks
+when configured; otherwise absent or null name fields cannot match an exclusion pattern and remain counted.
 
 Query syntax reference: [AWS Logs Insights filter](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Filter.html).
 The five-minute bin syntax and presence function are documented in
@@ -454,12 +464,15 @@ fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
 | limit 1000
 ```
 
-Do **not** add the exact-ID/name exclusions to this alternate alarm query: the
-metric filters in `rules.tf` use only event names and `security_group_name_patterns`.
-The exact lists still affect the Contributor Insights report/dashboard, not this alarm
-path. Missing group names remain counted. CloudTrail normally provides the name only on
-creation and legacy name-based calls, so changes/deletion using only `groupId` still count,
-even for a group whose name matches a pattern. There is no group-ID-to-name lookup.
+In this alternate alarm query, also insert each configured exact-ID/name filter shown
+above **before** the negative name-pattern filter. The directly filtered metric applies the
+same field-presence and `NotIn` narrowing as Contributor Insights: an exact ID or name list
+requires that field and rejects every listed value. The negative name conditions are joined
+with AND; missing/null group names do not match a pattern and remain counted unless an exact
+list rejects them. CloudTrail normally provides the name only on creation and legacy
+name-based calls, so changes/deletion using only `groupId` cannot be pattern-matched. There
+is no group-ID-to-name lookup. Contributor Insights/dashboard still apply exact exclusions,
+but may show events excluded by a name pattern.
 
 #### 10. Network ACL Changes (`acl_changes`)
 
@@ -566,12 +579,13 @@ fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
 | limit 1000
 ```
 
-Do **not** add the `iam_roles` exact exclusion to this alternate alarm query: the
-metric filters use only the IAM source, event prefixes and `iam_role_patterns`. Exact
-exclusions still apply to the Contributor Insights report/dashboard, but not the
-metric-filter alarm. Events without `roleName` remain counted. Patterns match the name of
-the role being changed, not the caller's ARN, session issuer or IAM path. Pattern exclusions
-do not remove contributors from the dashboard, so its ranking can differ from the alarm.
+In this alternate alarm query, also insert the configured `iam_roles` exact-exclusion
+snippet above **before** the negative name-pattern filter. The directly filtered metric
+applies the same required-field and `NotIn` narrowing as Contributor Insights. The negative
+name conditions are joined with AND; missing/null `roleName` values do not match a pattern
+and remain counted unless the exact-role list requires the field. Patterns match the role
+being changed, not the caller's ARN, session issuer or IAM path. Contributor Insights/dashboard
+still apply exact exclusions, but may show events excluded by a role-name pattern.
 
 #### Translate pattern exclusions for the alternate alarm queries
 
@@ -593,17 +607,16 @@ with `^` and `$`. For `%regex%`, remove only the percent delimiters, preserve th
 original matching intent, and escape `/` for the Logs Insights delimiter if needed.
 For multiple patterns, exclude their **union**, for example
 `/(^svc-.*$|^.*-exec-role$)/`, rather than requiring all patterns to match.
-The `not ispresent(...) or ... not like ...` form is intentional: the metric filter's
-excluded count never includes a record lacking the name, so subtraction leaves it in
-the alarm count. Removing the presence arm would lose those events from the query.
+The `not ispresent(...) or ... not like ...` form is intentional: absent/null names
+cannot match an exclusion pattern, so they remain candidates for the directly filtered
+metric unless a configured exact exclusion requires field presence. Keep all configured
+exact-exclusion snippets in the alternate query; the negative conditions for multiple
+patterns are combined with AND, matching the deployed metric filter.
 
-To inspect the **total** count in pattern mode, run its alternate query without the name
-exclusion filter and replace `sort`/`limit` with `stats count(*) as total by bin(5m)`.
-For the **excluded** count, replace that filter with `ispresent(name_field) and
-name_field like /your-patterns/`, then aggregate as `excluded`. Substitute the actual
-`requestParameters.roleName` or `requestParameters.groupName` field and regex; these
-last expressions are templates. The normal alternate query returns the retained (net)
-events, whose five-minute counts can be compared with `total - FILL(excluded, 0)`.
+To inspect the retained pattern-mode count, run its alternate query with the deployed exact
+snippets and replace `sort`/`limit` with `stats count(*) as matched_events by bin(5m)`.
+That count corresponds to the `CIS-Monitoring/<alarm-name>-Matched` metric's five-minute
+`Sum`, subject to normal log-delivery and historical-data timing caveats.
 
 ## Quick Start
 
@@ -612,7 +625,7 @@ events, whose five-minute counts can be compared with `total - FILL(excluded, 0)
 3. Set `settings.log_group_name` to that existing log group.
 4. Optionally add exclusions under `settings.exclude` for known benign noise - unauthorized API activity, specific security groups, or specific IAM roles. Exclusions are exact-match lists (no prefixes or wildcards) of at most 10 values each, and an exclusion narrows its rule to events that carry the matched field, so review the caveats above before setting `security_groups` or `iam_roles`.
 5. Optionally switch off individual rules under `settings.rules.<rule>.enabled` - each flag drops the Contributor Insights rule, its alarm and its dashboard widget together.
-6. To mute generated or automation-owned resources in an alarm without losing them from the dashboard, list name patterns under `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). Note that the security group variant only sees group names on creation - see the caveats in the usage section.
+6. To exclude generated or automation-owned resources from an alarm, list name patterns under `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). The alarm uses a directly filtered `<rule-name>-Matched` metric that also applies configured exact exclusions; the Contributor Insights dashboard can still show pattern-excluded events. Note that the security group variant only sees group names on creation - see the caveats in the usage section.
 7. Run `terragrunt plan` and `terragrunt apply`.
 
 
@@ -634,7 +647,7 @@ settings:
       - "sg-0a1b2c3d4e5f6a7b8"
     iam_roles:
       - "ci-deployer"
-    # Wildcard exclusion for generated roles - mutes the IAM alarm, not the dashboard.
+    # Wildcard exclusion for generated roles - removes them from the IAM alarm; the dashboard can still show them.
     iam_role_patterns:
       - "*-exec-role"
   # Switch off the rules that are not wanted - omitted rules stay enabled.
@@ -695,7 +708,6 @@ Available targets:
 | ---- | ---- |
 | [aws_cloudwatch_contributor_insight_rule.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_contributor_insight_rule) | resource |
 | [aws_cloudwatch_dashboard.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_dashboard) | resource |
-| [aws_cloudwatch_log_metric_filter.excluded](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_metric_filter) | resource |
 | [aws_cloudwatch_log_metric_filter.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_metric_filter) | resource |
 | [aws_cloudwatch_metric_alarm.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
 | [aws_sns_topic.cis_alarm_topic](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
