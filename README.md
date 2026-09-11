@@ -175,6 +175,436 @@ terragrunt plan
 terragrunt apply
 ```
 
+### Investigate an alarm: find matching CloudTrail events
+
+The following **CloudWatch Logs Insights QL** queries cover all 14 rules in `rules.tf`.
+They query the CloudTrail JSON events already delivered to CloudWatch Logs; they are
+not CloudTrail Lake SQL or CloudTrail Event history lookup expressions.
+
+1. Open the alarm in the same AWS account and Region as this module. In its history,
+   record the **breaching datapoint timestamp**, evaluation period and evaluated value,
+   not just the SNS notification time. Match its name to a rule below.
+2. Open **CloudWatch > Logs Insights**, select **Logs Insights QL**, and select only the
+   log group configured in `settings.log_group_name`. Select an absolute UTC time range
+   covering the alarm's evaluated five-minute interval. Start slightly wider if necessary
+   to inspect delivery delays, then narrow to the datapoint interval.
+3. Run that rule's query. The baseline queries assume no optional exclusions; apply the
+   documented adjustments using the settings deployed **when the alarm fired**.
+   IAM and security-group pattern exclusions require the alternate alarm query below.
+4. Inspect `eventID`, `eventTime`, the caller identity, source IP, request parameters,
+   error and `@message` to identify the underlying action. No general success-only filter
+   is applied: failed change attempts count when the implemented rule matches them.
+
+All alarms evaluate a count **>= 1** over **300 seconds**, with one evaluation period
+and one breaching datapoint required; missing data is treated as not breaching. Normally
+this is `INSIGHT_RULE_METRIC('<alarm-name>', 'Sum')` for a rule with `AggregateOn = Count`.
+For IAM/security-group pattern mode it is `total - FILL(excluded, 0)` in namespace
+`CIS-Monitoring`. See `main.tf` and `cloudwatch-alarms.tf` for the deployed expressions.
+
+Each raw-event query ends in `sort` and `limit 1000`. To compare **counts per alarm period**,
+replace those final two commands (do not append after the limit) with:
+
+```sql
+| stats count(*) as matching_events by bin(5m)
+```
+
+Use `5m`, not `300s`: Logs Insights caps a seconds-based bin at 60 seconds. Use the alarm's
+UTC interval boundaries when comparing bins. If they do not align with the bins, select
+the exact evaluated interval and use `| stats count(*) as matching_events` without
+`bin` instead. For contributor counts, instead replace the
+final `sort` and `limit` with `stats count(*) as matching_events by` followed by the two
+contributor fields listed for that rule, then `| sort matching_events desc`.
+
+These queries recover matching retained log records, not the alarm's historical metric
+store. Contributor Insights only processes newly ingested events while enabled, not old
+logs retroactively ([AWS rule creation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContributorInsights-CreateRule.html)).
+Late delivery, rule/settings changes, log retention and querying
+outside the evaluated interval can explain differences. `@timestamp`, `@ingestionTime`
+and CloudTrail's `eventTime` help distinguish event and delivery times. For an exact
+historical datapoint, use the alarm history and its metric graph; do not assume a log
+count obtained later must equal the value CloudWatch evaluated then. If the raw query
+hits 1,000 rows, narrow the time range; the aggregation above avoids that row limit.
+See [AWS alarm evaluation windows](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/alarm-evaluation-window.html)
+and [missing-data evaluation](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/alarms-and-missing-data.html)
+when reconciling the result with the alarm history.
+
+The baseline queries mirror the explicit rule filters and show the contributor fields.
+They do not silently discard events with missing contributor fields: AWS's rule-syntax
+reference does not define missing-key handling. If a count differs, inspect those records
+and compare with the Contributor Insights report before treating every row as a contributor.
+For `NotIn` filters (including optional exclusions), the explicit presence checks follow this module's
+missing-field caveat in `variables-cloudwatch.tf`; do not replace them with an expression
+that retains missing fields. Pattern-mode metric filters have no contributor-key checks.
+
+Query syntax reference: [AWS Logs Insights filter](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Filter.html).
+The five-minute bin syntax and presence function are documented in
+[AWS Logs Insights functions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-operations-functions.html).
+Contributor dimensions and filter composition follow
+[AWS Contributor Insights rule syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/ContributorInsights-RuleSyntax.html).
+
+| Rule key | Alarm name |
+| --- | --- |
+| `api_calls` | `CIS-Unauthorized-API-Activity` |
+| `console_signin` | `CIS-Console-Signin-Without-MFA` |
+| `root_activity` | `CIS-Root-Activity` |
+| `cloudtrail_changes` | `CIS-CloudTrail-Configuration-Changes` |
+| `console_failures` | `CIS-Console-Authentication-Failures` |
+| `cmk_delete` | `CIS-CMK-Deletion-Disabling` |
+| `s3_policy_changes` | `CIS-S3-Bucket-Policy-Changes` |
+| `config_changes` | `CIS-AWS-Config-Configuration-Changes` |
+| `sg_changes` | `CIS-Security-Group-Changes` |
+| `acl_changes` | `CIS-Network-ACL-Changes` |
+| `network_gw` | `CIS-Network-Gateway-Changes` |
+| `route_table_changes` | `CIS-Route-Table-Changes` |
+| `vpc_changes` | `CIS-VPC-Changes` |
+| `iam_changes` | `CIS-IAM-Changes` |
+
+#### 1. Unauthorized API Calls (`api_calls`)
+
+Alarm: `CIS-Unauthorized-API-Activity`. Contributor fields: `userIdentity.arn`, `eventName`.
+
+Matches only the exact error codes `AccessDenied` and `UnauthorizedOperation`, not suffix variants such as `AccessDeniedException`.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter errorCode in ["AccessDenied", "UnauthorizedOperation"]
+| sort @timestamp desc
+| limit 1000
+```
+
+If configured, insert the corresponding filter(s) **before `sort`**. Replace the
+example values with your deployed list; omit each line whose list is empty.
+
+`settings.exclude.unauthorized_sources`:
+
+```sql
+| filter ispresent(eventSource) and not (eventSource in ["macie2.amazonaws.com", "cloud9.amazonaws.com"])
+```
+
+`settings.exclude.unauthorized_events`:
+
+```sql
+| filter ispresent(eventName) and not (eventName in ["CreateUser", "DeleteUser"])
+```
+
+When both lists are configured, apply both filters (AND), not either one (OR).
+
+#### 2. Console Signin Without MFA (`console_signin`)
+
+Alarm: `CIS-Console-Signin-Without-MFA`. Contributor fields: `userIdentity.userName`, `sourceIPAddress`.
+
+Matches `ConsoleLogin` with a present `MFAUsed` value other than `Yes`. The rule does not require a successful login and does not test `responseElements.ConsoleLogin`.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.userName, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["ConsoleLogin"]
+| filter ispresent(additionalEventData.MFAUsed) and not (additionalEventData.MFAUsed in ["Yes"])
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 3. Root Activity (`root_activity`)
+
+Alarm: `CIS-Root-Activity`. Contributor fields: `userIdentity.type`, `eventName`.
+
+Matches root identity, an absent `invokedBy` field, and a present `eventType` other than `AwsServiceEvent`. These conditions are combined with AND.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.type, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter userIdentity.type in ["Root"]
+| filter not ispresent(userIdentity.invokedBy)
+| filter ispresent(eventType) and not (eventType in ["AwsServiceEvent"])
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 4. CloudTrail Configuration Changes (`cloudtrail_changes`)
+
+Alarm: `CIS-CloudTrail-Configuration-Changes`. Contributor fields: `userIdentity.sessionContext.sessionIssuer.arn`, `sourceIPAddress`.
+
+Matches the five event names below; the rule does not add an `eventSource` restriction. The contributor identity is the session issuer ARN, not the caller ARN.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["CreateTrail", "UpdateTrail", "DeleteTrail", "StartLogging", "StopLogging"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 5. Console Authentication Failures (`console_failures`)
+
+Alarm: `CIS-Console-Authentication-Failures`. Contributor fields: `userIdentity.userName`, `sourceIPAddress`.
+
+Matches the exact error message `Failed authentication` on `ConsoleLogin`; it does not match every sign-in error.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.userName, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["ConsoleLogin"]
+| filter errorMessage in ["Failed authentication"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 6. CMK Disabled or Deleted (`cmk_delete`)
+
+Alarm: `CIS-CMK-Deletion-Disabling`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Matches `DisableKey` or `ScheduleKeyDeletion` from KMS. Inspect `requestParameters.keyId` in the raw event.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventSource in ["kms.amazonaws.com"]
+| filter eventName in ["DisableKey", "ScheduleKeyDeletion"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 7. S3 Bucket Policy Changes (`s3_policy_changes`)
+
+Alarm: `CIS-S3-Bucket-Policy-Changes`. Contributor fields: `userIdentity.sessionContext.sessionIssuer.arn`, `sourceIPAddress`.
+
+Matches the S3 configuration calls listed below, including ACL, CORS, lifecycle and replication changes, not only bucket policy updates. Inspect `requestParameters.bucketName`.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventSource in ["s3.amazonaws.com"]
+| filter eventName in ["PutBucketAcl", "PutBucketPolicy", "PutBucketCors", "PutBucketLifecycle", "PutBucketReplication", "DeleteBucketPolicy", "DeleteBucketCors", "DeleteBucketLifecycle", "DeleteBucketReplication"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 8. AWS Config Configuration Changes (`config_changes`)
+
+Alarm: `CIS-AWS-Config-Configuration-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Matches the four AWS Config calls below. Other Config API calls are not included by this rule.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventSource in ["config.amazonaws.com"]
+| filter eventName in ["StopConfigurationRecorder", "DeleteDeliveryChannel", "PutDeliveryChannel", "PutConfigurationRecorder"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 9. Security Group Changes (`sg_changes`)
+
+Alarm: `CIS-Security-Group-Changes`. Contributor fields: `userIdentity.sessionContext.sessionIssuer.arn`, `sourceIPAddress`.
+
+**Contributor Insights mode (no `security_group_name_patterns`):** matches the six event names below, without an `eventSource` restriction. Inspect `requestParameters.groupId` and `requestParameters.groupName`.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["AuthorizeSecurityGroupIngress", "AuthorizeSecurityGroupEgress", "RevokeSecurityGroupIngress", "RevokeSecurityGroupEgress", "CreateSecurityGroup", "DeleteSecurityGroup"]
+| sort @timestamp desc
+| limit 1000
+```
+
+If configured, insert the corresponding filter(s) **before `sort`**. Replace the
+example values with your deployed list; omit each line whose list is empty.
+
+`settings.exclude.security_groups`:
+
+```sql
+| filter ispresent(requestParameters.groupId) and not (requestParameters.groupId in ["sg-0a1b2c3d4e5f6a7b8"])
+```
+
+`settings.exclude.security_group_names`:
+
+```sql
+| filter ispresent(requestParameters.groupName) and not (requestParameters.groupName in ["eks-cluster-sg-prod"])
+```
+
+Exact exclusions also drop events missing their field: an ID exclusion drops
+`CreateSecurityGroup` events without `requestParameters.groupId`; a name exclusion drops
+ID-only operations without `requestParameters.groupName`. With both lists, both fields
+must be present. This narrowing is specific to the Contributor Insights path.
+
+**Pattern-exclusion alarm mode:** if `settings.exclude.security_group_name_patterns`
+is nonempty, use the following alternate query instead. This example assumes the deployed
+patterns are `eks-cluster-sg-*` and `*-tmp-sg`; replace the regex alternatives with your
+actual patterns using the translation guide below.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["AuthorizeSecurityGroupIngress", "AuthorizeSecurityGroupEgress", "RevokeSecurityGroupIngress", "RevokeSecurityGroupEgress", "CreateSecurityGroup", "DeleteSecurityGroup"]
+| filter not ispresent(requestParameters.groupName)
+    or requestParameters.groupName not like /(^eks-cluster-sg-.*$|^.*-tmp-sg$)/
+| sort @timestamp desc
+| limit 1000
+```
+
+Do **not** add the exact-ID/name exclusions to this alternate alarm query: the
+metric filters in `rules.tf` use only event names and `security_group_name_patterns`.
+The exact lists still affect the Contributor Insights report/dashboard, not this alarm
+path. Missing group names remain counted. CloudTrail normally provides the name only on
+creation and legacy name-based calls, so changes/deletion using only `groupId` still count,
+even for a group whose name matches a pattern. There is no group-ID-to-name lookup.
+
+#### 10. Network ACL Changes (`acl_changes`)
+
+Alarm: `CIS-Network-ACL-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Matches the six ACL operations below, without an `eventSource` restriction. Inspect `requestParameters.networkAclId` and rule/association parameters.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["CreateNetworkAcl", "CreateNetworkAclEntry", "DeleteNetworkAcl", "DeleteNetworkAclEntry", "ReplaceNetworkAclEntry", "ReplaceNetworkAclAssociation"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 11. Network Gateway Changes (`network_gw`)
+
+Alarm: `CIS-Network-Gateway-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Matches the six customer/internet gateway operations below, without an `eventSource` restriction; this is not a catch-all for NAT or transit gateway changes.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["CreateCustomerGateway", "DeleteCustomerGateway", "AttachInternetGateway", "CreateInternetGateway", "DeleteInternetGateway", "DetachInternetGateway"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 12. Route Table Changes (`route_table_changes`)
+
+Alarm: `CIS-Route-Table-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Matches the seven route/route-table operations below, without an `eventSource` restriction. For example, `AssociateRouteTable` is not in the implemented list.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName in ["CreateRoute", "CreateRouteTable", "ReplaceRoute", "ReplaceRouteTableAssociation", "DeleteRouteTable", "DeleteRoute", "DisassociateRouteTable"]
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 13. VPC Changes (`vpc_changes`)
+
+Alarm: `CIS-VPC-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+Uses case-sensitive **prefix** matching, not an exact event-name list. For example, `CreateVpc` also matches `CreateVpcEndpoint` and `CreateVpcPeeringConnection`. Do not add an end anchor to the expression.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventName like /^(CreateVpc|DeleteVpc|ModifyVpcAttribute|AcceptVpcPeeringConnection|RejectVpcPeeringConnection|AttachClassicLinkVpc|DetachClassicLinkVpc|DisableVpcClassicLink|EnableVpcClassicLink)/
+| sort @timestamp desc
+| limit 1000
+```
+
+#### 14. IAM Changes (`iam_changes`)
+
+Alarm: `CIS-IAM-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
+
+**Contributor Insights mode (no `iam_role_patterns`):** matches IAM event names beginning with the seven prefixes below. `DetachRolePolicy` and other `Detach*` operations are not included by the implemented rule.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventSource in ["iam.amazonaws.com"]
+| filter eventName like /^(Create|Delete|Update|Add|Remove|Put|Attach)/
+| sort @timestamp desc
+| limit 1000
+```
+
+If configured, insert the corresponding filter(s) **before `sort`**. Replace the
+example values with your deployed list; omit each line whose list is empty.
+
+`settings.exclude.iam_roles`:
+
+```sql
+| filter ispresent(requestParameters.roleName) and not (requestParameters.roleName in ["ci-deployer"])
+```
+
+With an exact `iam_roles` exclusion, events without `requestParameters.roleName`
+(for example `CreateUser` and `CreatePolicy`) are also dropped from Contributor Insights.
+Do not substitute the actor's role ARN: this setting identifies the role being changed.
+
+**Pattern-exclusion alarm mode:** if `settings.exclude.iam_role_patterns` is nonempty,
+use the following alternate query instead. This example assumes the deployed pattern is
+`*-exec-role`; replace the expression with your actual patterns using the guide below.
+
+```sql
+fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
+       userIdentity.arn, sourceIPAddress,
+       awsRegion, errorCode, errorMessage, requestParameters, @message
+| filter eventSource in ["iam.amazonaws.com"]
+| filter eventName like /^(Create|Delete|Update|Add|Remove|Put|Attach)/
+| filter not ispresent(requestParameters.roleName)
+    or requestParameters.roleName not like /^.*-exec-role$/
+| sort @timestamp desc
+| limit 1000
+```
+
+Do **not** add the `iam_roles` exact exclusion to this alternate alarm query: the
+metric filters use only the IAM source, event prefixes and `iam_role_patterns`. Exact
+exclusions still apply to the Contributor Insights report/dashboard, but not the
+metric-filter alarm. Events without `roleName` remain counted. Patterns match the name of
+the role being changed, not the caller's ARN, session issuer or IAM path. Pattern exclusions
+do not remove contributors from the dashboard, so its ranking can differ from the alarm.
+
+#### Translate pattern exclusions for the alternate alarm queries
+
+Only the two pattern-mode alarm queries use this translation. Do not paste `*` wildcards
+or `%regex%` delimiters directly into Logs Insights; metric filter patterns and Logs
+Insights QL are different languages. Match case exactly.
+
+| Deployed pattern | Logs Insights regex | Meaning |
+| --- | --- | --- |
+| `svc-*` | `/^svc-.*$/` | Prefix |
+| `*-exec-role` | `/^.*-exec-role$/` | Suffix |
+| `*exec*` | `/^.*exec.*$/` | Substring |
+| `exact-role-name` | `/^exact-role-name$/` | Exact name |
+| `%^svc-[a-z]+-role$%` | `/^svc-[a-z]+-role$/` | Regex; retain the original anchors |
+
+For a plain pattern, escape regex metacharacters in the literal name (for example `.`
+as `\.` and `+` as `\+`), replace each `*` with `.*`, then anchor the whole expression
+with `^` and `$`. For `%regex%`, remove only the percent delimiters, preserve the regex's
+original matching intent, and escape `/` for the Logs Insights delimiter if needed.
+For multiple patterns, exclude their **union**, for example
+`/(^svc-.*$|^.*-exec-role$)/`, rather than requiring all patterns to match.
+The `not ispresent(...) or ... not like ...` form is intentional: the metric filter's
+excluded count never includes a record lacking the name, so subtraction leaves it in
+the alarm count. Removing the presence arm would lose those events from the query.
+
+To inspect the **total** count in pattern mode, run its alternate query without the name
+exclusion filter and replace `sort`/`limit` with `stats count(*) as total by bin(5m)`.
+For the **excluded** count, replace that filter with `ispresent(name_field) and
+name_field like /your-patterns/`, then aggregate as `excluded`. Substitute the actual
+`requestParameters.roleName` or `requestParameters.groupName` field and regex; these
+last expressions are templates. The normal alternate query returns the retained (net)
+events, whose five-minute counts can be compared with `total - FILL(excluded, 0)`.
+
 ## Quick Start
 
 1. Ensure CloudTrail is already delivering events into a CloudWatch log group.
