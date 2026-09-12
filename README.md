@@ -49,7 +49,7 @@ We have [*lots of terraform modules*][terraform_modules] that are Open Source an
 Use this module when you already centralize AWS CloudTrail events in CloudWatch Logs and want opinionated CIS monitoring on top of that stream.
 The module reads one existing log group, builds a curated set of Contributor Insights rules for key CIS control areas, publishes alarm notifications through SNS, and exposes a dashboard that operators can review during incident response or compliance reviews.
 Every rule ships enabled; `settings.rules.<rule>.enabled` lets you switch individual rules off selectively, which also removes the matching alarm and dashboard widget.
-Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule. When `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` is nonempty, its rule's alarm instead reads one directly filtered `<rule-name>-Matched` CloudWatch Logs metric in `CIS-Monitoring`. That filter applies both exact and pattern exclusions, so excluded events do not contribute to that rule's alarm; Contributor Insights/dashboard still apply exact exclusions, but can show pattern-excluded events for investigation.
+Noise can be trimmed two ways: exact-match lists under `settings.exclude` become `NotIn` filters on the Contributor Insights rule. When `settings.exclude.iam_role_patterns`, `settings.exclude.iam_policy_name_patterns` or `settings.exclude.security_group_name_patterns` is nonempty, its rule's alarm instead reads one directly filtered `<rule-name>-Matched` CloudWatch Logs metric in `CIS-Monitoring`. That filter applies both exact and pattern exclusions, so excluded events do not contribute to that rule's alarm; Contributor Insights/dashboard still apply exact exclusions, but can show pattern-excluded events for investigation.
 
 ## Usage
 
@@ -93,7 +93,12 @@ settings: # (Required) CloudWatch Contributor Insights configuration for the CIS
       - "*-exec-role" # "*" at the start - ends with
       - "*exec*" # "*" at both ends - contains
       - "exact-role-name" # no wildcard - exact match only
-      - "%^svc-[a-z]+-role$%" # regex, only for what "*" cannot express. Max 2 regex values, no parentheses.
+      - "%^svc-[a-z]+-role$%" # regex, only for what "*" cannot express. Max 2 regex values per rule (shared with iam_policy_name_patterns), no parentheses.
+    iam_policy_names: # (Optional) iam_changes rule - exact IAM policy names ($.requestParameters.policyName) to ignore. NOTE: only inline-policy events (Put/Delete{Role,User,Group}Policy) and CreatePolicy carry policyName; Attach*/Detach*/CreatePolicyVersion use policyArn. Combined with iam_roles it narrows the rule to PutRolePolicy/DeleteRolePolicy only. Default: [].
+      - "ci-deployer-inline"
+    iam_policy_name_patterns: # (Optional) Patterns for policy names kept out of the CIS-IAM-Changes alarm. Same forms and CIS-IAM-Changes-Matched metric as iam_role_patterns; exact IAM exclusions also apply. Missing/null policyName remains an alarm candidate unless the exact list requires presence. Default: [].
+      - "AWSLambdaBasicExecutionRole-*" # starts with
+      - "*-inline-policy" # ends with
   rules: # (Optional) Per-rule switches. Every rule is enabled when omitted. Setting enabled to false removes that Contributor Insights rule, its metric alarm and its dashboard widget. Default: {}.
     api_calls:
       enabled: true # (Optional) Unauthorized API Calls. Valid values: true, false. Default: true.
@@ -538,7 +543,7 @@ fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
 
 Alarm: `CIS-IAM-Changes`. Contributor fields: `userIdentity.arn`, `sourceIPAddress`.
 
-**Contributor Insights mode (no `iam_role_patterns`):** matches IAM event names beginning with the seven prefixes below. `DetachRolePolicy` and other `Detach*` operations are not included by the implemented rule.
+**Contributor Insights mode (no `iam_role_patterns` and no `iam_policy_name_patterns`):** matches IAM event names beginning with the seven prefixes below. `DetachRolePolicy` and other `Detach*` operations are not included by the implemented rule.
 
 ```sql
 fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
@@ -563,9 +568,25 @@ With an exact `iam_roles` exclusion, events without `requestParameters.roleName`
 (for example `CreateUser` and `CreatePolicy`) are also dropped from Contributor Insights.
 Do not substitute the actor's role ARN: this setting identifies the role being changed.
 
-**Pattern-exclusion alarm mode:** if `settings.exclude.iam_role_patterns` is nonempty,
-use the following alternate query instead. This example assumes the deployed pattern is
-`*-exec-role`; replace the expression with your actual patterns using the guide below.
+`settings.exclude.iam_policy_names`:
+
+```sql
+| filter ispresent(requestParameters.policyName) and not (requestParameters.policyName in ["ci-deployer-inline"])
+```
+
+`requestParameters.policyName` is carried only by inline-policy events (`PutRolePolicy`,
+`DeleteRolePolicy`, `PutUserPolicy`, `DeleteUserPolicy`, `PutGroupPolicy`,
+`DeleteGroupPolicy`) and by `CreatePolicy`; `Attach*`, `Detach*` and `CreatePolicyVersion`
+identify the policy by `policyArn`. With an exact `iam_policy_names` exclusion, every other
+IAM event is dropped from Contributor Insights, and with **both** `iam_roles` and
+`iam_policy_names` set only `PutRolePolicy` / `DeleteRolePolicy` remain.
+
+**Pattern-exclusion alarm mode:** if `settings.exclude.iam_role_patterns` or
+`settings.exclude.iam_policy_name_patterns` is nonempty, use the following alternate query
+instead. This example assumes the deployed role pattern is `*-exec-role`; replace the
+expression with your actual patterns using the guide below, and add an equivalent
+`not ispresent(requestParameters.policyName) or requestParameters.policyName not like /.../`
+line for each deployed policy-name pattern.
 
 ```sql
 fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
@@ -579,17 +600,18 @@ fields @timestamp, @ingestionTime, eventTime, eventID, eventSource, eventName,
 | limit 1000
 ```
 
-In this alternate alarm query, also insert the configured `iam_roles` exact-exclusion
-snippet above **before** the negative name-pattern filter. The directly filtered metric
-applies the same required-field and `NotIn` narrowing as Contributor Insights. The negative
-name conditions are joined with AND; missing/null `roleName` values do not match a pattern
-and remain counted unless the exact-role list requires the field. Patterns match the role
-being changed, not the caller's ARN, session issuer or IAM path. Contributor Insights/dashboard
-still apply exact exclusions, but may show events excluded by a role-name pattern.
+In this alternate alarm query, also insert the configured `iam_roles` and
+`iam_policy_names` exact-exclusion snippets above **before** the negative name-pattern
+filters. The directly filtered metric applies the same required-field and `NotIn`
+narrowing as Contributor Insights. The negative name conditions are joined with AND;
+missing/null `roleName` / `policyName` values do not match a pattern and remain counted
+unless the matching exact list requires the field. Patterns match the role or policy being
+changed, not the caller's ARN, session issuer or IAM path. Contributor Insights/dashboard
+still apply exact exclusions, but may show events excluded by a name pattern.
 
 #### Translate pattern exclusions for the alternate alarm queries
 
-Only the two pattern-mode alarm queries use this translation. Do not paste `*` wildcards
+Only the pattern-mode alarm queries use this translation. Do not paste `*` wildcards
 or `%regex%` delimiters directly into Logs Insights; metric filter patterns and Logs
 Insights QL are different languages. Match case exactly.
 
@@ -623,9 +645,9 @@ That count corresponds to the `CIS-Monitoring/<alarm-name>-Matched` metric's fiv
 1. Ensure CloudTrail is already delivering events into a CloudWatch log group.
 2. Scaffold a Terragrunt deployment that points at a released module tag.
 3. Set `settings.log_group_name` to that existing log group.
-4. Optionally add exclusions under `settings.exclude` for known benign noise - unauthorized API activity, specific security groups, or specific IAM roles. Exclusions are exact-match lists (no prefixes or wildcards) of at most 10 values each, and an exclusion narrows its rule to events that carry the matched field, so review the caveats above before setting `security_groups` or `iam_roles`.
+4. Optionally add exclusions under `settings.exclude` for known benign noise - unauthorized API activity, specific security groups, specific IAM roles or IAM policy names. Exclusions are exact-match lists (no prefixes or wildcards) of at most 10 values each, and an exclusion narrows its rule to events that carry the matched field, so review the caveats above before setting `security_groups`, `iam_roles` or `iam_policy_names`.
 5. Optionally switch off individual rules under `settings.rules.<rule>.enabled` - each flag drops the Contributor Insights rule, its alarm and its dashboard widget together.
-6. To exclude generated or automation-owned resources from an alarm, list name patterns under `settings.exclude.iam_role_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). The alarm uses a directly filtered `<rule-name>-Matched` metric that also applies configured exact exclusions; the Contributor Insights dashboard can still show pattern-excluded events. Note that the security group variant only sees group names on creation - see the caveats in the usage section.
+6. To exclude generated or automation-owned resources from an alarm, list name patterns under `settings.exclude.iam_role_patterns`, `settings.exclude.iam_policy_name_patterns` or `settings.exclude.security_group_name_patterns` (`*` works at either end or both). The alarm uses a directly filtered `<rule-name>-Matched` metric that also applies configured exact exclusions; the Contributor Insights dashboard can still show pattern-excluded events. Note that the security group variant only sees group names on creation - see the caveats in the usage section.
 7. Run `terragrunt plan` and `terragrunt apply`.
 
 
@@ -650,6 +672,9 @@ settings:
     # Wildcard exclusion for generated roles - removes them from the IAM alarm; the dashboard can still show them.
     iam_role_patterns:
       - "*-exec-role"
+    # Same for inline policies attached by automation.
+    iam_policy_name_patterns:
+      - "AWSLambdaBasicExecutionRole-*"
   # Switch off the rules that are not wanted - omitted rules stay enabled.
   rules:
     vpc_changes:
@@ -721,7 +746,7 @@ Available targets:
 | <a name="input_extra_tags"></a> [extra\_tags](#input\_extra\_tags) | Extra tags to add to the resources | `map(string)` | `{}` | no |
 | <a name="input_is_hub"></a> [is\_hub](#input\_is\_hub) | Is this a hub or spoke configuration? | `bool` | `false` | no |
 | <a name="input_org"></a> [org](#input\_org) | Organization details | <pre>object({<br/>    organization_name = string<br/>    organization_unit = string<br/>    environment_type  = string<br/>    environment_name  = string<br/>  })</pre> | n/a | yes |
-| <a name="input_settings"></a> [settings](#input\_settings) | Settings for the insights. Supports log\_group\_name (Required), exclude (Optional) for per-rule NotIn exclusions, and rules (Optional) where each rule key accepts enabled to switch the Contributor Insights rule, its alarm and its dashboard widget on or off. Default: {} - all rules enabled, no exclusions. | `any` | `{}` | no |
+| <a name="input_settings"></a> [settings](#input\_settings) | Settings for the insights. Supports log\_group\_name (Required), exclude (Optional) for per-rule exact NotIn lists and alarm-only name-pattern lists, and rules (Optional) where each rule key accepts enabled to switch the Contributor Insights rule, its alarm and its dashboard widget on or off. Default: {} - all rules enabled, no exclusions. | `any` | `{}` | no |
 | <a name="input_spoke_def"></a> [spoke\_def](#input\_spoke\_def) | Spoke ID Number, must be a 3 digit number | `string` | `"001"` | no |
 
 ## Outputs

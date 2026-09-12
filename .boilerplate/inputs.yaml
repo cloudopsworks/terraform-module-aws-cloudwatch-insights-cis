@@ -22,7 +22,12 @@
 #       - "*-exec-role" # "*" at the start - ends with
 #       - "*exec*" # "*" at both ends - contains
 #       - "exact-role-name" # no wildcard - exact match only
-#       - "%^svc-[a-z]+-role$%" # percent signs - CloudWatch Logs regex, only for what "*" cannot express (character classes, alternation, anchors). Max 2 regex values; parentheses are rejected, group with "|".
+#       - "%^svc-[a-z]+-role$%" # percent signs - CloudWatch Logs regex, only for what "*" cannot express (character classes, alternation, anchors). Max 2 regex values per rule (shared with iam_policy_name_patterns); parentheses are rejected, group with "|".
+#     iam_policy_names: # (Optional) iam_changes rule - exact IAM policy names ($.requestParameters.policyName) to ignore. NOTE: only inline-policy events (PutRolePolicy, DeleteRolePolicy, PutUserPolicy, DeleteUserPolicy, PutGroupPolicy, DeleteGroupPolicy) and CreatePolicy carry policyName; Attach*/Detach*/CreatePolicyVersion use policyArn. Setting this narrows the rule to events carrying policyName; combined with iam_roles it narrows to PutRolePolicy/DeleteRolePolicy only. Default: [].
+#       - "ci-deployer-inline"
+#     iam_policy_name_patterns: # (Optional) Patterns for policy names kept out of the CIS-IAM-Changes alarm. Same forms as iam_role_patterns ("*" in any position or a "%regex%"), same CIS-Monitoring/CIS-IAM-Changes-Matched metric; exact IAM exclusions also apply. Missing/null policyName values remain alarm candidates unless the exact list requires field presence. Contributor Insights/dashboard can still show pattern-excluded events. Default: [].
+#       - "AWSLambdaBasicExecutionRole-*" # starts with
+#       - "*-inline-policy" # ends with
 #   rules: # (Optional) Per-rule switches. Every rule is enabled when omitted. Setting enabled to false removes that Contributor Insights rule, its metric alarm and its dashboard widget. Default: {}.
 #     api_calls: # (Optional) Unauthorized API Calls - CIS-Unauthorized-API-Activity.
 #       enabled: true # (Optional) Valid values: true, false. Default: true.
